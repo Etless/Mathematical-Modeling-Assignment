@@ -123,7 +123,7 @@ def read_TLE_file(file_name,satellite_name=''):
     return tle_data
 
   for i in range(0,len(file_contents),3):
-    if(satellite_name in file_contents[i]):
+    if satellite_name in file_contents[i]:
       Name = file_contents[i].strip()
       line1 = file_contents[i+1].strip().split()
       line2 = file_contents[i+2].strip().split()
@@ -159,23 +159,23 @@ def read_obj(fname):
     return np.array(verts),np.array(vcols),np.array(faces)
 
 def rotscaleloc_to_vispy(pos=None,quat=None,Rot=None,Eul=None,scale=None):
-	if quat is not None:
-		q = Quat(w=quat[0],x=quat[1],y=quat[2],z=quat[3])
-		H = Mat4(q.conjugate().get_matrix())
-	elif Rot is not None:
-		p = np.array([[0,0,0]]).T
-		HT = np.vstack(((np.hstack((Rot,p)),np.array([[0,0,0,1]]))))
-		H = Mat4(HT.T)
-	elif Eul is not None:
-		q = Quat.create_from_euler_angles(Eul[2],Eul[1],Eul[0])
-		H = Mat4(q.conjugate().get_matrix())
-	else:
-		H = Mat4()
-	if scale is not None:
-		H.scale((scale,scale,scale))
-	if pos is not None:
-		H.translate(pos)
-	return H
+    if quat is not None:
+        q = Quat(w=quat[0],x=quat[1],y=quat[2],z=quat[3])
+        H = Mat4(q.conjugate().get_matrix())
+    elif Rot is not None:
+        p = np.array([[0,0,0]]).T
+        HT = np.vstack(((np.hstack((Rot,p)),np.array([[0,0,0,1]]))))
+        H = Mat4(HT.T)
+    elif Eul is not None:
+        q = Quat.create_from_euler_angles(Eul[2],Eul[1],Eul[0])
+        H = Mat4(q.conjugate().get_matrix())
+    else:
+        H = Mat4()
+    if scale is not None:
+        H.scale((scale,scale,scale))
+    if pos is not None:
+        H.translate(pos)
+    return H
 
 def H_to_Rp(H):
     return H.matrix[:3,:3].T,H.matrix[-1][:3]
@@ -190,4 +190,3 @@ def log_pos(name,pos,path='data/'):
     np.savetxt(file_name,pos)
 
     return file_name
-
