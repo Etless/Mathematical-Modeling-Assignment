@@ -5,6 +5,8 @@ import orbit_lib as ol
 import simulator as sim
 import math
 
+import plotter as pl
+
 def PolarToPoint(r, angle):
     return math.cos(angle)*r, math.sin(angle)*r, 0
 
@@ -25,17 +27,21 @@ class ScenarioAssignment1(sim.BaseScenario):
         w_ie = 7.2921*10**(-5)
         self.omega_q = su.Quaternion([0, 0, w_ie])
 
+        self.pos_plot = np.array([t, self.r * np.cos(self.angle), self.r * np.sin(self.angle), 0])
+        self.r_i = np.array(PolarToPoint(self.r, self.angle))
+
     # Overriding
     def update(self, t, dt):
         self.angle += 2*math.pi/T * dt
-        self.q_E = 0.5 * self.q_E @ self.omega_q
+        #self.q_E = 0.5 * self.q_E @ self.omega_q
+        self.r_i = np.array(PolarToPoint(self.r, self.angle))
+        self.pos_plot = np.vstack((self.pos_plot, np.array([t, self.r_i[0], self.r_i[1], self.r_i[2]])))
 
     # Overriding
     def get(self):
-        r_i = np.array(PolarToPoint(self.r, self.angle))
         return [
-            ['satellite', r_i, su.Quaternion()],
-            ['body_frame', r_i, su.Quaternion()],
+            ['satellite', self.r_i, su.Quaternion()],
+            ['body_frame', self.r_i, su.Quaternion()],
             ['earth', np.zeros(3), self.q_E],
             ['ECI frame', np.zeros(3), su.Quaternion()]]
         """return [
@@ -46,7 +52,8 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     # Overriding
     def post_process(self, t, dt):
-        pass
+        file = su.log_pos("assignment1_position", self.pos_plot)#, path="C:/Users/Askar/PycharmProjects/Mathematical-Modeling-Assignment/Assignment1/data/")
+        pl.main(["null", "lineplot", file])
 
 def main():
   sim_config = {'t_0':0,'t_e':T,'t_step':1,'speed_factor':100,'anim_dt':0.04,'scale_factor':1000,'visualise':True}

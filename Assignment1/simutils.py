@@ -180,8 +180,14 @@ def rotscaleloc_to_vispy(pos=None,quat=None,Rot=None,Eul=None,scale=None):
 def H_to_Rp(H):
     return H.matrix[:3,:3].T,H.matrix[-1][:3]
 
-def log_pos(name,pos):
-    file_name = 'data/'+name+'_'+dt.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')+'.txt'
+def log_pos(name,pos,path='data/'):
+    #file_name = path + name + '_' + dt.datetime.now().strftime('%Y-%m-%d_%H:%M:%S') + '.txt'
+    file_name = path + name + '.txt'
+
     print("logged: "+file_name)
+
+    open(file_name, 'a').close()
     np.savetxt(file_name,pos)
+
+    return file_name
 
