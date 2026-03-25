@@ -18,7 +18,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         self.q = None
 
-        self.d_q_E = None
+        self.theta_E = None
         self.q_E = None
 
         self.r_i = None
@@ -37,8 +37,8 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.q = su.Quaternion()
 
         # Earth rotation variables
-        self.d_q_E = 0 # Offset to the rotation
-        temp = ut.polar2coord(1, self.d_q_E/2) # Normalized XY from q_E
+        self.theta_E = 0 # Offset to the rotation
+        temp = ut.polar2coord(1, self.theta_E/2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         # Data logging variables
@@ -52,8 +52,8 @@ class ScenarioAssignment1(sim.BaseScenario):
         #self.theta = self.theta_offset + 2 * math.pi / sl.T * t
 
         # Calculate earth's rotation from time step
-        self.d_q_E += dt * ol.w_E
-        temp = ut.polar2coord(1, self.d_q_E / 2) # Normalized XY from q_E
+        self.theta_E += dt * ol.w_E
+        temp = ut.polar2coord(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         # Log orbit data
@@ -66,6 +66,7 @@ class ScenarioAssignment1(sim.BaseScenario):
             ['satellite', self.r_i, self.q],
             ['body_frame', self.r_i, self.q],
             ['earth', np.zeros(3), self.q_E],
+            ['ECEF frame', np.zeros(3), self.q_E],
             ['ECI frame', np.zeros(3), su.Quaternion()]]
 
 
@@ -77,7 +78,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
 
 def main():
-  sim_config = {'t_0':0,'t_e':sl.T,'t_step':1,'speed_factor':100,'anim_dt':0.04,'scale_factor':2000,'visualise':True}
+  sim_config = {'t_0':0,'t_e':sl.T,'t_step':1,'speed_factor':200,'anim_dt':0.04,'scale_factor':2000,'visualise':True}
   #scenario = sim.BaseScenario()
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)

@@ -1,5 +1,6 @@
 from vispy import app, scene
 from vispy.scene.visuals import Mesh
+
 from vispy.scene import MatrixTransform as Mat4
 from vispy.scene import STTransform as STT 
 from vispy.util.quaternion import Quaternion as Quat
@@ -17,7 +18,7 @@ import sat_lib as sl
 
 class SimCanvas(scene.SceneCanvas):
     def __init__(self,anim_queue,anim_dt,anim_close,scale_factor,scene_conf=None):
-        _default_conf = {'satellite_model':'3DModels/satellite.obj','earth_model':'3DModels/earth.obj','earth_texture':'3DModels/earth.jpg'}
+        _default_conf = {'satellite_model':'3DModels/satellite.obj','earth_model':'3DModels/earth.obj','earth_texture':'3DModels/earth_8k.jpg'}
         scene.SceneCanvas.__init__(self,title='STE-3605 Simulator',keys='interactive',size=(800,600))
         self.unfreeze()
         self.anim_queue = anim_queue
@@ -57,11 +58,39 @@ class SimCanvas(scene.SceneCanvas):
 
     def make_default_earth(self,earth_model,earth_texture):
         self.earth_verts, self.earth_faces, self.earth_normals, self.earth_texcoords = read_mesh(earth_model)
-        self.earth = Mesh(self.earth_verts, self.earth_faces, shading='smooth', color='white',parent=self.view.scene)
+
+        ###   Extra Code   ### AI CODE!!!
+        height_map = np.flipud(imread("3DModels/elev_bump_8k.jpg"))  # grayscale image
+        height_map = height_map.astype(np.float32)
+
+        if height_map.ndim == 3:
+            height_map = height_map[:, :, 0]  # take one channel
+
+        # Normalize (important!)
+        height_map /= height_map.max()
+
+        h, w = height_map.shape
+
+        uv = self.earth_texcoords.copy()
+        uv[:, 0] = np.clip(uv[:, 0], 0, 1)
+        uv[:, 1] = np.clip(uv[:, 1], 0, 1)
+
+        x = (uv[:, 0] * (w - 1)).astype(int)
+        y = (uv[:, 1] * (h - 1)).astype(int)
+
+        heights = height_map[y, x]
+
+        scale = 0.02 * (ol.R_E / self.scale_factor)  # tweak this
+
+        self.earth_verts = self.earth_verts + self.earth_normals * heights[:, None] * scale
+        ### Extra Code End ###
+
+        self.earth = Mesh(self.earth_verts, self.earth_faces, shading='smooth', color='white', parent=self.view.scene)
         self.earth.shading_filter.light_dir = self.light_dir[:3]
         self.earth_texture = np.flipud(imread(earth_texture))
-        self.texture_filter = TextureFilter(self.earth_texture,self.earth_texcoords)
+        self.texture_filter = TextureFilter(self.earth_texture, self.earth_texcoords)
         self.earth.attach(self.texture_filter)
+
         s = ol.R_E/self.scale_factor
         self.scene_list['earth'] = (self.earth,s)
 
