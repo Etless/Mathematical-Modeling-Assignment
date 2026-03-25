@@ -27,7 +27,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def init(self, t):
 
-        # Orbit variables
+        # Orbit variables [Satellite]
         self.r = sl.satellite_distance # Distance from earth center
 
         self.theta_offset = 0 # Offset to the orbit angle

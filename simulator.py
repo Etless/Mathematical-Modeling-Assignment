@@ -18,7 +18,7 @@ import sat_lib as sl
 
 class SimCanvas(scene.SceneCanvas):
     def __init__(self,anim_queue,anim_dt,anim_close,scale_factor,scene_conf=None):
-        _default_conf = {'satellite_model':'3DModels/satellite.obj','earth_model':'3DModels/earth1.obj','earth_texture':'3DModels/earth_8k_opt.jpg'}
+        _default_conf = {'satellite_model':'3DModels/satellite.obj','earth_model':'3DModels/earth.obj','earth_texture':'3DModels/earth_8k.jpg'}
         scene.SceneCanvas.__init__(self,title='STE-3605 Simulator',keys='interactive',size=(800,600))
         self.unfreeze()
         self.anim_queue = anim_queue
@@ -59,6 +59,7 @@ class SimCanvas(scene.SceneCanvas):
     def make_default_earth(self,earth_model,earth_texture):
         self.earth_verts, self.earth_faces, self.earth_normals, self.earth_texcoords = read_mesh(earth_model)
 
+        """
         ###   Extra Code   ### AI CODE!!!
         height_map = np.flipud(imread("3DModels/elev_bump_8k.jpg"))  # grayscale image
         height_map = height_map.astype(np.float32)
@@ -86,10 +87,11 @@ class SimCanvas(scene.SceneCanvas):
 
         heights = height_map[y, x]
 
-        scale = 0.02 * (ol.R_E / self.scale_factor)  # tweak this
+        scale = 0.01 * (ol.R_E / self.scale_factor)  # tweak this
 
         self.earth_verts = self.earth_verts + self.earth_normals * heights[:, None] * scale
         ### Extra Code End ###
+        """
 
         self.earth = Mesh(self.earth_verts, self.earth_faces, shading='smooth', color='white', parent=self.view.scene)
         self.earth.shading_filter.light_dir = self.light_dir[:3]
