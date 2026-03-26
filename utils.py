@@ -5,7 +5,7 @@ import numpy as np
 
 # Convert between polar coordinates to
 # cartesian coordinates
-def polar2coord(r, theta, out=None):
+def polar2coord(r, theta, out=None) -> np.ndarray:
     if out is None:
         out = np.empty(3)
 
@@ -13,3 +13,4 @@ def polar2coord(r, theta, out=None):
     out[1] = r * math.sin(theta)
     out[2] = 0
     return out
+
