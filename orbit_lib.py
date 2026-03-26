@@ -125,7 +125,7 @@ def sidereal_angle(JD):
 def state_from_orbit_params(h, e, theta, omega, i, w):
     r = h ** 2 / mu / (1 + e * math.cos(theta))
     rp = polar2coord(r, theta)
-    vp = (h / mu) * np.array([-np.sin(theta), e + np.cos(theta), 0])
+    vp = (mu/h) * np.array([-np.sin(theta), e + np.cos(theta), 0])
 
     R = rotation_matrix_from_classical_euler_sequence(omega, i, w)
 
@@ -199,7 +199,7 @@ def orbit_params_from_state(ri, vi):
     # True anomaly
     theta = math.acos(np.dot(ei, ri) / (e * r))
     if vr < 0:
-        w = 2 * math.pi - w
+        theta = 2 * math.pi - theta
 
     return h, e, theta, omega, i, w
 
