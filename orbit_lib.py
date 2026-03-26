@@ -5,6 +5,8 @@ import numpy as np
 
 from utils import polar2coord
 
+import plotter as pl
+
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
 R_E = 6378.1363  # Radius of earth [km]
 w_E = 7.292115e-5 # Angular speed of earth [rad/s]
@@ -51,23 +53,27 @@ def tle_params_from_orbit_params():
 
 # Presume its given in rads and not quaternions
 # (feels redundant to write essentially the same code 4 times in a row)
-def rotation_matrix_from_classical_euler_sequence(omega, i, w):
-    R_1 = np.array([
+def r1_matrix(alpha):
+    return np.array([
         [1, 0, 0],
-        [0, np.cos(w), -np.sin(w)],
-        [0, np.sin(w), np.cos(w)]
+        [0, np.cos(alpha), -np.sin(alpha)],
+        [0, np.sin(alpha), np.cos(alpha)]
     ])
-    R_2 = np.array([
-        [np.cos(i), 0, np.sin(i)],
+def r2_matrix(beta):
+    return np.array([
+        [np.cos(beta), 0, np.sin(beta)],
         [0, 1, 0],
-        [-np.sin(i), 0, np.cos(i)]
+        [-np.sin(beta), 0, np.cos(beta)]
     ])
-    R_3 = np.array([
-        [np.cos(omega), -np.sin(omega), 0],
-        [np.sin(omega), np.cos(omega), 0],
+def r3_matrix(gamma):
+    return np.array([
+        [np.cos(gamma), -np.sin(gamma), 0],
+        [np.sin(gamma), np.cos(gamma), 0],
         [0, 0, 1]
     ])
-    return R_3 @ R_2 @ R_1 # Might need to be just * instead of @
+
+def rotation_matrix_from_classical_euler_sequence(omega, i, w):
+    return r3_matrix(omega) @ r1_matrix(i) @ r3_matrix(w)
 
 def quaternion_from_classical_euler_sequence(omega, i, w):
     q_1 = su.Quaternion([math.cos(w / 2), math.sin(w / 2), 0, 0])
@@ -133,7 +139,7 @@ def state_from_tle_params(args):
     # Get satellite position and velocity in ECI frame from TLE parameters
 
     # NN.NNNNNNNN | NNNNN | N [Revs per day | Revs | Checksum]
-    T = 24 / float(args[5][:11]) * 36000
+    T = orbital_period_from_revs_per_day(float(args[5][:11]))
 
     a = (math.sqrt(mu)*T/(2*math.pi)) ** (2/3) # Semi-major axis
 
@@ -155,15 +161,15 @@ def state_from_tle_params(args):
 
     # Get satellite position and velocity
     ri, vi = state_from_orbit_params(h, e, theta, omega, i, w)
-
+    print(e)
     return ri, vi
 
 
 # Algorithm 4
 def orbit_params_from_state(ri, vi):
-    r = np.linalg.norm(ri)
-    v = np.linalg.norm(vi)
-    vr  = (ri @ vi) / r
+    r  = np.linalg.norm(ri)
+    v  = np.linalg.norm(vi)
+    vr = np.dot(ri ,vi) / r
 
     # Angular momentum
     hi = np.cross(ri, vi)
@@ -172,7 +178,7 @@ def orbit_params_from_state(ri, vi):
     # Inclination
     i = math.acos(hi[2] / h)
 
-    k = np.array([[0], [0], [1]])
+    k = np.array([0, 0, 1])
     Ni = np.cross(k, hi)
     N = np.linalg.norm(Ni)
 
@@ -182,22 +188,55 @@ def orbit_params_from_state(ri, vi):
         omega = 2 * math.pi - omega
 
     # Eccentricity
-    ei = ((v ** 2 - mu / r) * ri - r * vr * vi) / mu
+    ei = ((v ** 2 - mu / r) * ri - vi * vr * r) / mu
     e = np.linalg.norm(ei)
 
     # Argument of perigee
-    w = math.acos(np.cross(Ni, ei) / (N * e))
+    w = math.acos(np.dot(Ni, ei) / (N * e))
     if ei[2] < 0:
         w = 2 * math.pi - w
 
     # True anomaly
-    theta = math.acos(np.cross(ei, ri) / (e * r))
+    theta = math.acos(np.dot(ei, ri) / (e * r))
     if vr < 0:
         w = 2 * math.pi - w
 
     return h, e, theta, omega, i, w
 
 # Algorithm 5
+def orbit_propagation(ri, vi):
+    h, e, theta, omega, i, w = orbit_params_from_state(ri, vi)
+    print(e)
+
+    # TODO: Unsure about step 2 in algorithm 5
+    # Get mean anomaly
+    Me = mean_anomaly_from_eccentric_anomaly(eccentric_anomaly_from_true_anomaly(theta, e), e)
+
+    # Mean motion
+    a = h ** 2 / (mu * (1 - e ** 2))
+    T = orbital_period_from_semi_major_axis(a)
+    n = 2 * math.pi / T
+    print(a, T / 60)
+    # Test
+    pos_plot = np.concatenate(([0], ri))  # Initialize the plot data
+
+    # Some for loop??? Propagation loop
+    dt = 1
+    for t in range(0, int(T), dt):
+        Me = angle_wrap_radians(Me + n * dt)
+        # Is the eccentric anomaly wanted full iteration or just 1?
+        E = eccentric_anomaly_from_mean_anomaly(Me, e)
+        # Safe to overwrite theta due to its values already being calculated
+        theta = true_anomaly_from_eccentric_anomaly(E, e)
+
+        # Get the new ri, vi
+        ri, vi = state_from_orbit_params(h, e, theta, omega, i, w)
+        pos_plot = np.vstack((pos_plot, np.concatenate(([t], ri))))
+
+    file = su.log_pos("assignment2_position", pos_plot)
+    pos_plot = None  # Clear the data after its saved
+    pl.line_plot(file)
+
 
 # Algorithm 6
 # Epoch [int|int|float] (Note: given as string!)
@@ -205,7 +244,7 @@ def orbit_params_from_state(ri, vi):
 def epoch_to_julian_date(epoch):
     year = int(epoch[:2]) + 2000
     day  = float(epoch[2:]) # Includes fraction
-    leap = 1 if year % 4 == 0 and day < 60 else 0 # Uses day 60 due to UTC being included
+    leap = 1 if year % 4 == 0 and day <= 60 else 0 # Uses day 60 due to UTC being included
 
     return 2451544.5 + year * 365 + year // 4 + day - leap
 

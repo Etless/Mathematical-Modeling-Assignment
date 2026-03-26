@@ -112,10 +112,16 @@ def main():
   ### Convert arguments to values ###
   JD = ol.epoch_to_julian_date(args[0])
   theta_G = ol.sidereal_angle(JD)
+
+  # Julian Date information
   print(f"Julian Date: {JD}")
   print(f"Sidereal Angle: {theta_G} [{ol.rad2deg(theta_G):.2f}]")
 
-  ol.state_from_tle_params(args[1:])
+  # Orbit params
+  ri, vi = ol.state_from_tle_params(args[1:])
+  print(ri, vi)
+
+  ol.orbit_propagation(ri, vi)
 
 
 if __name__ == "__main__":
