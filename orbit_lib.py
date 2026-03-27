@@ -9,6 +9,7 @@ mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
 R_E = 6378.1363  # Radius of earth [km]
 w_E = 7.292115e-5 # Angular speed of earth [rad/s]
 
+
 ###################################
 # Assignment 2 | Helper functions #
 ###################################
@@ -93,9 +94,40 @@ def orbital_period_from_revs_per_day(x: float) -> float:
     """
     return 24 * 3600 / x
 
-# Guess he wants h, e, theta, omega, i, w
-def orbit_params_from_tle_params(e, x, me, omega, i, w):
-    pass
+# TLE functions
+def orbit_params_from_tle_params(tle: str, debug: bool=False) -> list[str]:
+    """
+    Extracts orbital parameters from TLE text.
+    :param tle: TLE text
+    :param debug: If debug output should be written (default: False)
+    :return: List of orbital parameters:
+             - epoch (YYDDD.DDDDDDDD)
+             - inclination [degrees]
+             - RAAN [degrees]
+             - eccentricity
+             - argument of perigee [degrees]
+             - mean anomaly [degrees]
+             - revolutions per day
+    """
+    # Split text into TLE rows
+    rows = tle.splitlines()
+    if debug: print(f"TLE Name: '{rows[0]}' Data:\n{rows[1]}\n{rows[2]}")
+
+    # Get all necessary fields as arguments
+    args = [""] * 7
+    fields = (" ".join(rows[1].split())).split(' ')  # Fields in row 1
+    args[0] = fields[3]  # Epoch                           [int|int|float]
+
+    fields = (" ".join(rows[2].split())).split(' ')  # Fields in row 2
+    args[1] = fields[2]  # Inclination                     [float] [degrees]
+    args[2] = fields[3]  # RAAN                            [float] [degrees]
+    args[3] = fields[4]  # Eccentricity                    [float]
+    args[4] = fields[5]  # Argument of perigee             [float] [degrees]
+    args[5] = fields[6]  # Mean anomaly                    [float] [degrees]
+    args[6] = fields[7]  # Revs per day | Revs | Checksum  [float|int|int]
+
+    return args
+
 def tle_params_from_orbit_params():
     pass
 
@@ -270,6 +302,7 @@ def polar2xyz(r: float, theta: float, out: np.ndarray=None) -> np.ndarray:
     out[1] = r * math.sin(theta)
     out[2] = 0
     return out
+
 
 ###################################
 # Assignment 2 | Algorithms       #

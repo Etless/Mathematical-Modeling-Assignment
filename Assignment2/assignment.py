@@ -1,7 +1,6 @@
 import numpy as np
 import simutils as su
 import orbit_lib as ol
-import sat_lib as sl
 import simulator as sim
 import math
 
@@ -100,28 +99,17 @@ def main():
 
   # Read the TLE file
   file_path = "Assignment2/tle.txt"
-  rows = []
+
   try:
       with open(file_path, "r") as f:
-          rows = f.read().splitlines()
+          tle_text = f.read()
 
   except FileNotFoundError:
     print(f"Error: The file '{file_path}' was not found.")
     return
-  print(f"TLE Name: '{rows[0]}' Data:\n{rows[1]}\n{rows[2]}")
 
   # Get all necessary fields as arguments
-  args = [""] * 7
-  fields = (" ".join(rows[1].split())).split(' ') # Fields in row 1
-  args[0] = fields[3] # Epoch                           [int|int|float]
-
-  fields = (" ".join(rows[2].split())).split(' ') # Fields in row 2
-  args[1] = fields[2] # Inclination                     [float]
-  args[2] = fields[3] # RAAN                            [float]
-  args[3] = fields[4] # Eccentricity                    [float]
-  args[4] = fields[5] # Argument of perigee             [float]
-  args[5] = fields[6] # Mean anomaly                    [float]
-  args[6] = fields[7] # Revs per day | Revs | Checksum  [float|int|int]
+  args = ol.orbit_params_from_tle_params(tle_text, debug=True)
 
   ### Convert arguments to values ###
   JD = ol.epoch_to_julian_date(args[0])
@@ -133,7 +121,6 @@ def main():
 
   # Orbit params
   ri, vi = ol.state_from_tle_params(args[1:])
-  #print(ri, vi)
 
   #ol.orbit_propagation(ri, vi)
 
@@ -143,8 +130,8 @@ def main():
   theta_G0 = theta_G
 
   T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
-  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 200, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
 
+  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 200, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)
 
