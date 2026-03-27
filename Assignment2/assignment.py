@@ -5,10 +5,8 @@ import sat_lib as sl
 import simulator as sim
 import math
 
-import utils
 import utils as ut
 import plotter as pl
-from orbit_lib import epoch_to_julian_date, state_from_tle_params
 
 # Global variables
 ri0 = None
@@ -40,7 +38,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.h, self.e, theta, self.omega, self.i, self.w = ol.orbit_params_from_state(ri0, vi0)
 
         # Conversion madness! True anomaly [theta] -> Eccentric anomaly [E] -> Mean anomaly [Me]
-        self.Me = ol.mean_anomaly_from_eccentric_anomaly(ol.eccentric_anomaly_from_true_anomaly(theta, self.e), self.e)
+        self.Me = ol.mean_anomaly_from_true_anomaly(theta, self.e)
 
         # Mean motion
         a = self.h ** 2 / (ol.mu * (1 - self.e ** 2))
