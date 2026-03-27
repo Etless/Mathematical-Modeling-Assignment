@@ -88,7 +88,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def post_process(self, t, dt):
         # Plot orbit of satellite
-        file = su.log_pos("assignment1_position", self.pos_plot)
+        file = su.log_pos("assignment2_position", self.pos_plot)
         self.pos_plot = None # Clear the data after its saved
         pl.line_plot(file)
 
