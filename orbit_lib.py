@@ -384,39 +384,55 @@ def state_from_tle_params(args):
 
 
 # Algorithm 4
-def orbit_params_from_state(ri, vi):
+def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[float, float, float, float, float, float]:
+    """
+    Calculates classical orbital elements from position and velocity vectors.
+    :param ri: Position vector in ECI frame [km]
+    :param vi: Velocity vector in ECI frame [km/s]
+    :return: Tuple containing orbital parameters:
+             - Specific angular momentum [km**2/s]
+             - Eccentricity
+             - True anomaly [radians]
+             - Right Ascension of Ascending Node (RAAN) [radians]
+             - Inclination [radians]
+             - Argument of perihelion [radians]
+    """
+    # Normalize position and velocity vectors
     r  = np.linalg.norm(ri)
     v  = np.linalg.norm(vi)
+
+    # Calculate radial velocity
     vr = np.dot(ri ,vi) / r
 
     # Angular momentum
     hi = np.cross(ri, vi)
-    h = np.linalg.norm(hi)
+    h = np.linalg.norm(hi).astype(float)
 
     # Inclination
     i = math.acos(hi[2] / h)
 
+    # Node vector
     k = np.array([0, 0, 1])
     Ni = np.cross(k, hi)
     N = np.linalg.norm(Ni)
 
     # RAAN
     omega = math.acos(Ni[0]/N)
-    if Ni[1] < 0:
+    if Ni[1] < 0: # Preserve sign
         omega = 2 * math.pi - omega
 
     # Eccentricity
     ei = ((v ** 2 - mu / r) * ri - vi * vr * r) / mu
-    e = np.linalg.norm(ei)
+    e = np.linalg.norm(ei).astype(float)
 
     # Argument of perigee
     w = math.acos(np.dot(Ni, ei) / (N * e))
-    if ei[2] < 0:
+    if ei[2] < 0: # Preserve sign
         w = 2 * math.pi - w
 
     # True anomaly
     theta = math.acos(np.dot(ei, ri) / (e * r))
-    if vr < 0:
+    if vr < 0: # Preserve sign
         theta = 2 * math.pi - theta
 
     return h, e, theta, omega, i, w
@@ -457,9 +473,16 @@ def orbit_propagation(ri, vi):
 
 
 # Algorithm 6
-# Epoch [int|int|float] (Note: given as string!)
-# NN|NNN.NNNNNNNN [Year | Day in year . Fraction]
-def epoch_to_julian_date(epoch):
+def epoch_to_julian_date(epoch: str) -> float:
+    """
+    Converts epoch to Julian date.
+
+    Epoch is expected to have the given format:
+        NN | NNN.NNNNNNNN [Year | Day in year . Fraction]
+
+    :param epoch: Epoch as string
+    :return: Julian date
+    """
     year = int(epoch[:2]) + 2000
     day  = float(epoch[2:]) # Includes fraction
     leap = 1 if year % 4 == 0 and day <= 60 else 0 # Uses day 60 due to UTC being included
