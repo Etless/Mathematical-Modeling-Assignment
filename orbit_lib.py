@@ -329,7 +329,7 @@ def state_from_tle_params(args):
 
     # Get satellite position and velocity
     ri, vi = state_from_orbit_params(h, e, theta, omega, i, w)
-    print(e)
+
     return ri, vi
 
 

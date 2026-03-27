@@ -11,6 +11,7 @@ import plotter as pl
 # Global variables
 ri0 = None
 vi0 = None
+theta_G0 = 0
 
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
@@ -32,7 +33,7 @@ class ScenarioAssignment1(sim.BaseScenario):
     def init(self, t):
 
         # Catch variables from outside of scope
-        global ri0, vi0
+        global ri0, vi0, theta_G0
 
         # Retrieve orbit parameters from initial ri and vi
         self.h, self.e, theta, self.omega, self.i, self.w = ol.orbit_params_from_state(ri0, vi0)
@@ -49,10 +50,10 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.ri = ri0  # Satellite position
 
         # Earth rotation variables
-        self.theta_E = 0 # Offset to the rotation
-        #temp = ut.polar2coord(1, self.theta_E/2) # Normalized XY from q_E
-        #self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
-        self.q_E = su.Quaternion()
+        self.theta_E = theta_G0 # Offset to the rotation
+        temp = ut.polar2coord(1, self.theta_E/2) # Normalized XY from q_E
+        self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
+        #self.q_E = su.Quaternion()
 
         # Data logging variables
         self.pos_plot = np.concatenate(([t], self.ri)) # Initialize the plot data
@@ -138,9 +139,10 @@ def main():
 
   #ol.orbit_propagation(ri, vi)
 
-  global ri0, vi0
+  global ri0, vi0, theta_G0
   ri0 = ri
   vi0 = vi
+  theta_G0 = theta_G
 
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)
