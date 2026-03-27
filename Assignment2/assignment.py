@@ -5,7 +5,6 @@ import sat_lib as sl
 import simulator as sim
 import math
 
-import utils as ut
 import plotter as pl
 
 # Global variables
@@ -51,7 +50,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Earth rotation variables
         self.theta_E = theta_G0 # Offset to the rotation
-        temp = ut.polar2coord(1, self.theta_E/2) # Normalized XY from q_E
+        temp = ol.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
         #self.q_E = su.Quaternion()
 
@@ -72,7 +71,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
-        temp = ut.polar2coord(1, self.theta_E / 2) # Normalized XY from q_E
+        temp = ol.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         # Log orbit data
@@ -95,7 +94,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         pl.line_plot(file)
 
 def main():
-  sim_config = {'t_0':0,'t_e':sl.T,'t_step':1,'speed_factor':200,'anim_dt':0.04,'scale_factor':2000,'visualise':True}
   #scenario = sim.BaseScenario()
   #scenario = ScenarioAssignment1()
   #sim.create_and_start_simulation(sim_config,scenario)
@@ -143,6 +141,9 @@ def main():
   ri0 = ri
   vi0 = vi
   theta_G0 = theta_G
+
+  T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
+  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 200, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
 
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)

@@ -38,11 +38,11 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Earth rotation variables
         self.theta_E = 0 # Offset to the rotation
-        temp = ut.polar2coord(1, self.theta_E/2) # Normalized XY from q_E
+        temp = ut.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         # Data logging variables
-        self.r_i = ut.polar2coord(self.r, self.theta) # Convert to XY
+        self.r_i = ut.polar2xyz(self.r, self.theta) # Convert to XY
         self.pos_plot = np.concatenate(([t], self.r_i)) # Initialize the plot data
 
 
@@ -53,11 +53,11 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
-        temp = ut.polar2coord(1, self.theta_E / 2) # Normalized XY from q_E
+        temp = ut.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         # Log orbit data
-        self.r_i = ut.polar2coord(self.r, self.theta) # Convert to XY
+        self.r_i = ut.polar2xyz(self.r, self.theta) # Convert to XY
         self.pos_plot = np.vstack((self.pos_plot, np.concatenate(([t], self.r_i))))
 
 

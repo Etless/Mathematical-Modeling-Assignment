@@ -3,8 +3,6 @@ import simutils as su
 
 import numpy as np
 
-from utils import polar2coord
-
 import plotter as pl
 
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
@@ -253,6 +251,25 @@ def angle_wrap_degrees(deg: float) -> float:
     """
     return deg % 360
 
+# Polar coordinate functions
+def polar2xyz(r: float, theta: float, out: np.ndarray=None) -> np.ndarray:
+    """
+    Converts polar coordinates in the orbital plane to 3D cartesian coordinates.
+
+    The output lies in the XY-plane with z = 0.
+
+    :param r: Radius (any consistent unit, e.g., km)
+    :param theta: Angle [radians]
+    :param out: Optional output array to store the result
+    :return: 3-element NumPy array [x, y, z] with z = 0
+    """
+    if out is None:
+        out = np.empty(3)
+
+    out[0] = r * math.cos(theta)
+    out[1] = r * math.sin(theta)
+    out[2] = 0
+    return out
 
 ###################################
 # Assignment 2 | Algorithms       #
@@ -294,7 +311,7 @@ def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: f
              - Velocity vector in ECI frame [km/s]
     """
     r = h ** 2 / u / (1 + e * math.cos(theta)) # Get distance of satellite to planet center
-    rp = polar2coord(r, theta) # Convert to XY
+    rp = polar2xyz(r, theta) # Convert to XY
     vp = (u/h) * np.array([-np.sin(theta), e + np.cos(theta), 0])
 
     R = rotation_matrix_from_classical_euler_sequence(omega, i, w)
