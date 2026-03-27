@@ -322,8 +322,7 @@ def sidereal_angle(JD: float) -> float:
     )
 
     # Add 0.5 to JD because Julian days start at noon
-    theta_G  = theta_G0 + w_E * (24 * 3600 * (JD + 0.5) % 1.0)
-
+    theta_G  = theta_G0 + w_E * (24 * 3600 * ((JD + 0.5) % 1.0))
     return angle_wrap_radians(theta_G)
 
 # Algorithm 2
@@ -379,7 +378,6 @@ def state_from_tle_params(args):
 
     # Get satellite position and velocity
     ri, vi = state_from_orbit_params(h, e, theta, omega, i, w)
-
     return ri, vi
 
 
@@ -440,7 +438,6 @@ def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[float, floa
 # Algorithm 5
 def orbit_propagation(ri, vi):
     h, e, theta, omega, i, w = orbit_params_from_state(ri, vi)
-    print(e)
 
     # TODO: Unsure about step 2 in algorithm 5
     # Get mean anomaly
@@ -450,7 +447,7 @@ def orbit_propagation(ri, vi):
     a = h ** 2 / (mu * (1 - e ** 2))
     T = orbital_period_from_semi_major_axis(a)
     n = 2 * math.pi / T
-    print(a, T / 60)
+
     # Test
     pos_plot = np.concatenate(([0], ri))  # Initialize the plot data
 
