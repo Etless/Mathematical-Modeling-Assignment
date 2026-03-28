@@ -316,6 +316,7 @@ def sidereal_angle(JD: float) -> float:
     :param JD: Julian Date (days since J2000.0, can include fractional day)
     :return: Greenwich sidereal angle [radians]
     """
+
     T0 = (int(JD) - 2451545) / 36525
     theta_G0 = deg2rad(
         100.4606184 + 36000.77005361 * T0 + 0.00038793 * T0**2 - 2.6e-8 * T0**3
@@ -324,6 +325,14 @@ def sidereal_angle(JD: float) -> float:
     # Add 0.5 to JD because Julian days start at noon
     theta_G  = theta_G0 + w_E * (24 * 3600 * ((JD + 0.5) % 1.0))
     return angle_wrap_radians(theta_G)
+
+    """# AI slop due to original function being misaligned
+    T = (JD - 2451545.0) / 36525.0
+    theta_G = deg2rad(
+        280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T**2 - T**3 / 38710000.0
+    )
+
+    return angle_wrap_radians(theta_G)"""
 
 # Algorithm 2
 def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: float, w: float, u: float=mu) -> tuple[np.ndarray, np.ndarray]:
@@ -480,7 +489,7 @@ def epoch_to_julian_date(epoch: str) -> float:
     :param epoch: Epoch as string
     :return: Julian date
     """
-    year = int(epoch[:2]) + 2000
+    year = int(epoch[:2])
     day  = float(epoch[2:]) # Includes fraction
     leap = 1 if year % 4 == 0 and day <= 60 else 0 # Uses day 60 due to UTC being included
 
