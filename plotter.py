@@ -1,3 +1,4 @@
+import math
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +14,7 @@ def line_plot(file_path):
     plt.show()
 
 
-def ground_tracking(file_path: str):
+def ground_tracking(file_path: str, img_path):
     """
     Plots ground tracking data from file.
 
@@ -24,12 +25,30 @@ def ground_tracking(file_path: str):
     :param file_path: File path to ground tracking data
     """
 
-    ## Temp load image directly
-    ground = image.imread("3DModels/earth_8k.jpg")
+    # Load data
+    data = np.loadtxt(file_path)
+    _, lons, lats = data.T
 
-    plt.plot(200, 350, marker='v', color="white")
+    # Load ground track image
+    ground = image.imread(img_path)
 
-    plt.imshow(ground)
+    # Find jumps larger than pi
+    jumps = np.abs(np.diff(lons)) > np.pi
+    split_indices = np.where(jumps)[0] + 1
+
+    # Create segments from each split segment
+    lon_segments = np.split(lons, split_indices)
+    lat_segments = np.split(lats, split_indices)
+
+    _, ax = plt.subplots()
+    ax.imshow(ground, extent=(-180.0, 180.0, -90.0, 90.0), zorder=0)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_xlim(-180, 180)
+    ax.set_ylim(-90, 90)
+
+    for lo, la in zip(lon_segments, lat_segments):
+        ax.plot(lo/np.pi*180, la/np.pi*180, color='r', zorder=1)
     plt.show()
 
 def main(argv):

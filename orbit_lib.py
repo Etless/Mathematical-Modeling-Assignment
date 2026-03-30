@@ -171,7 +171,7 @@ def rotation_matrix_from_classical_euler_sequence(omega: float, i: float, w: flo
     """
     Returns the 3x3 rotation matrix for a classical Euler sequence.
 
-    Rotations are applied in the followingorder:
+    Rotations are applied in the following order:
     - Omega [RAAN] (around z-axis)
     - i     [Inclination] (around x-axis)
     - w     [Argument of perihelion] (around z-axis)
@@ -494,3 +494,20 @@ def epoch_to_julian_date(epoch: str) -> float:
     leap = 1 if year % 4 == 0 and day <= 60 else 0 # Uses day 60 due to UTC being included
 
     return 2451544.5 + year * 365 + year // 4 + day - leap
+
+###################################
+# Custom | Algorithms             #
+###################################
+
+def ground_track(ri, theta):
+
+    # Convert from ECI to ECEF frame
+    R = rotation_matrix_from_classical_euler_sequence(-theta, 0.0, 0.0)
+    r_ecef = R @ ri
+    r = np.linalg.norm(r_ecef).astype(float)  # Get radius
+
+    # Get the latitude and longitude
+    lon = math.atan2(r_ecef[1], r_ecef[0])  # Range [-pi, pi]
+    lat = math.asin(r_ecef[2] / r)          # Range [-pi/2, pi/2]
+
+    return lon, lat

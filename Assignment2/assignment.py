@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import simutils as su
 import orbit_lib as ol
@@ -5,6 +7,7 @@ import simulator as sim
 import math
 
 import plotter as pl
+from orbit_lib import ground_track
 
 # Global variables
 ri0 = None
@@ -26,6 +29,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.e = None
         self.h = None
         self.pos_plot = None
+        self.ground_track_plot = None
 
 
     def init(self, t):
@@ -56,6 +60,9 @@ class ScenarioAssignment1(sim.BaseScenario):
         # Data logging variables
         self.pos_plot = np.concatenate(([t], self.ri)) # Initialize the plot data
 
+        lon, lat = ol.ground_track(self.ri, self.theta_E)
+        self.ground_track_plot = np.concatenate(([t], [lon, lat]))
+
 
     def update(self, t, dt):
 
@@ -73,10 +80,11 @@ class ScenarioAssignment1(sim.BaseScenario):
         temp = ol.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
-        print(ol.rad2deg(self.theta_E - self.Me))
-
         # Log orbit data
         self.pos_plot = np.vstack((self.pos_plot, np.concatenate(([t], self.ri))))
+
+        lon, lat = ol.ground_track(self.ri, self.theta_E) # Ground track
+        self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
 
 
     def get(self):
@@ -94,6 +102,11 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.pos_plot = None # Clear the data after its saved
         pl.line_plot(file)
 
+        file = su.log_pos("assignment2_ground_track", self.ground_track_plot)
+        self.ground_track_plot = None  # Clear the data after its saved
+        pl.ground_tracking(file, "3DModels/earth_8k.jpg")
+
+
 def main():
   #scenario = sim.BaseScenario()
   #scenario = ScenarioAssignment1()
@@ -101,7 +114,8 @@ def main():
 
   # Read the TLE file
   #file_path = "Assignment2/tle.txt"
-  file_path = "Assignment2/SAT00005_TLE.txt"
+  #file_path = "Assignment2/SAT00005_TLE.txt"
+  file_path = "Assignment2/MOLNIYA.txt"
 
   try:
       with open(file_path, "r") as f:
@@ -134,11 +148,9 @@ def main():
 
   T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
 
-  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
+  sim_config = {'t_0': 0, 't_e': T*2, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)
-
-  pl.ground_tracking("woomp")
 
 
 
