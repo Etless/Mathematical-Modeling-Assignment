@@ -113,9 +113,9 @@ def main():
   #sim.create_and_start_simulation(sim_config,scenario)
 
   # Read the TLE file
-  #file_path = "Assignment2/tle.txt"
+  file_path = "Assignment2/tle.txt"
   #file_path = "Assignment2/SAT00005_TLE.txt"
-  file_path = "Assignment2/MOLNIYA.txt"
+  #file_path = "Assignment2/MOLNIYA.txt"
 
   try:
       with open(file_path, "r") as f:
@@ -136,6 +136,8 @@ def main():
   print(f"Julian Date: {JD}")
   print(f"Sidereal Angle: {theta_G} [{ol.rad2deg(theta_G):.2f}]")
 
+  ol.julian_date_to_iso(JD)
+
   # Orbit params
   ri, vi = ol.state_from_tle_params(args[1:])
 
@@ -148,7 +150,7 @@ def main():
 
   T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
 
-  sim_config = {'t_0': 0, 't_e': T*2, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
+  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)
 

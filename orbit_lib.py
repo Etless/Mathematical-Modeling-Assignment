@@ -4,6 +4,7 @@ import simutils as su
 import numpy as np
 
 import plotter as pl
+from astropy.time import Time # Used for custom code
 
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
 R_E = 6378.1363  # Radius of earth [km]
@@ -125,6 +126,9 @@ def orbit_params_from_tle_params(tle: str, debug: bool=False) -> list[str]:
     args[4] = fields[5]  # Argument of perigee             [float] [degrees]
     args[5] = fields[6]  # Mean anomaly                    [float] [degrees]
     args[6] = fields[7]  # Revs per day | Revs | Checksum  [float|int|int]
+
+    print(f"'{rows[1][2:7].strip()}'")
+    print(f"'{rows[1][14:16].strip()}'")
 
     return args
 
@@ -492,22 +496,46 @@ def epoch_to_julian_date(epoch: str) -> float:
     year = int(epoch[:2])
     day  = float(epoch[2:]) # Includes fraction
     leap = 1 if year % 4 == 0 and day <= 60 else 0 # Uses day 60 due to UTC being included
+    print(year+2000, day, leap)
 
     return 2451544.5 + year * 365 + year // 4 + day - leap
+
 
 ###################################
 # Custom | Algorithms             #
 ###################################
 
-def ground_track(ri, theta):
+def ground_track(ri: np.ndarray, theta: float) -> tuple[float, float]:
+    """
+    Computes the ground track longitude and latitude of a satellite.
 
+    The satellite position is given in the Earth-Centered Inertial (ECI) frame
+    and is rotated into the Earth-Centered Earth-Fixed (ECEF) frame using the
+    Earth's rotation angle.
+
+    The longitude is in the range [-pi, pi] and the latitude is in the range
+    [-pi/2, pi/2].
+
+    :param ri: Satellite position vector in ECI frame [km]
+    :param theta: Earth rotation angle (Greenwich sidereal angle) [radians]
+    :return: Tuple (longitude, latitude) in radians
+    """
     # Convert from ECI to ECEF frame
     R = rotation_matrix_from_classical_euler_sequence(-theta, 0.0, 0.0)
     r_ecef = R @ ri
-    r = np.linalg.norm(r_ecef).astype(float)  # Get radius
+    r = np.linalg.norm(r_ecef) # Get radius
 
-    # Get the latitude and longitude
+    # Get the longitude and latitude
     lon = math.atan2(r_ecef[1], r_ecef[0])  # Range [-pi, pi]
-    lat = math.asin(r_ecef[2] / r)          # Range [-pi/2, pi/2]
+    lat = math.asin(np.clip(r_ecef[2] / r, -1.0, 1.0))          # Range [-pi/2, pi/2]
 
     return lon, lat
+
+def julian_date_to_iso(JD: float) -> str:
+    """
+    Converts Julian date to ISO format.
+    :param JD: Julian Date (days since J2000.0, can include fractional day)
+    :return: ISO formatted Julian date
+    """
+    t = Time(JD, format='jd', scale='utc') # Converts julian date to utc time
+    return t.datetime.isoformat() # Return ISO format of time
