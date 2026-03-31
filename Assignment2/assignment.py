@@ -113,8 +113,8 @@ def main():
   #sim.create_and_start_simulation(sim_config,scenario)
 
   # Read the TLE file
-  file_path = "Assignment2/tle.txt"
-  #file_path = "Assignment2/SAT00005_TLE.txt"
+  #file_path = "Assignment2/tle.txt"
+  file_path = "Assignment2/SAT00005_TLE.txt"
   #file_path = "Assignment2/MOLNIYA.txt"
 
   try:

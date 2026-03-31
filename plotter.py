@@ -14,7 +14,7 @@ def line_plot(file_path):
     plt.show()
 
 
-def ground_tracking(file_path: str, img_path):
+def ground_tracking(file_path: str, img_path: str):
     """
     Plots ground tracking data from file.
 
@@ -23,23 +23,24 @@ def ground_tracking(file_path: str, img_path):
         2. Longitude and Latitude of satellite
 
     :param file_path: File path to ground tracking data
+    :param img_path: Image path of ground tracking image
     """
 
     # Load data
     data = np.loadtxt(file_path)
-    _, lons, lats = data.T
+    t, lons, lats = data.T
+
+    # If data uses the same time at the beginning then
+    # remove one
+    if t[0] == t[1]:
+        t = np.delete(t, 0)
+        lons = np.delete(lons, 0)
+        lats = np.delete(lats, 0)
 
     # Load ground track image
     ground = image.imread(img_path)
 
-    # Find jumps larger than pi
-    jumps = np.abs(np.diff(lons)) > np.pi
-    split_indices = np.where(jumps)[0] + 1
-
-    # Create segments from each split segment
-    lon_segments = np.split(lons, split_indices)
-    lat_segments = np.split(lats, split_indices)
-
+    # Setup plot
     _, ax = plt.subplots()
     ax.imshow(ground, extent=(-180.0, 180.0, -90.0, 90.0), zorder=0)
     ax.set_xlabel("Longitude")
@@ -47,8 +48,32 @@ def ground_tracking(file_path: str, img_path):
     ax.set_xlim(-180, 180)
     ax.set_ylim(-90, 90)
 
+    # Find jumps larger than pi
+    jumps = np.abs(np.diff(lons)) > np.pi
+    split_indices = np.where(jumps)[0] + 1
+
+    # Convert the longitude and latitudes to degrees to
+    # better fit plot
+    lons *= 180.0 / np.pi
+    lats *= 180.0 / np.pi
+
+    # Create segments from each split segment
+    lon_segments = np.split(lons, split_indices)
+    lat_segments = np.split(lats, split_indices)
+
+    # Draw ground track to plot
     for lo, la in zip(lon_segments, lat_segments):
-        ax.plot(lo/np.pi*180, la/np.pi*180, color='r', zorder=1)
+        ax.plot(lo, la, color='r', zorder=1)
+
+    dt = t[1]-t[0] # Assumes constant delta time
+    N = 60 * 60 / dt # Mark every 60min
+
+    if N % 1.0 != 0:
+        print(f"The time interval is not a full number and therefor will contain deviations!!!.")
+
+    N = int(N)
+    ax.scatter(lons[::N], lats[::N], color='red', s=10)
+
     plt.show()
 
 def main(argv):
