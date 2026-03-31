@@ -190,3 +190,16 @@ def log_pos(name,pos,path='data/'):
     np.savetxt(file_name,pos)
 
     return file_name
+
+###################################
+# Assignment 3 | Algorithms       #
+###################################
+
+def step_euler(h, t_curr, x_curr, f):
+    return x_curr + h * f(t_curr, x_curr)
+
+def euler_leapfrog(h, t_curr, x_curr, f):
+    pass
+
+def step_verlet(h, t_curr, x_curr, x_prev, f):
+    pass
