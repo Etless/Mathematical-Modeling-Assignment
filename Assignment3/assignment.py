@@ -34,7 +34,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.m = 8000 # Mass of the satellite [kg]
 
         v_temp = math.sqrt(ol.mu / (ol.R_E + 800))
-        x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
 
         # Position from each integration method
         self.euler_x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
@@ -122,7 +121,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         file = su.log_pos("assignment3_energy", self.orbit_energy_plot)
         self.orbit_energy_plot = None  # Clear the data after its saved
-        pl.line_plot(file)
+        pl.line_plot(file, labels=["Euler", "Leapfrog", "Verlet"])
 
 
 def main():

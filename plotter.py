@@ -5,12 +5,21 @@ import numpy as np
 
 import matplotlib.image as image
 
-def line_plot(file_path):
+def line_plot(file_path, labels=None):
     data = np.loadtxt(file_path)
     t = data[:,0]
+
     _, ax = plt.subplots()
-    for col in data[:,1:].T:
-        ax.plot(t,col)
+
+    for i, col in enumerate(data[:,1:].T):
+        if labels is None:
+            ax.plot(t,col)
+        else:
+            ax.plot(t,col, label=labels[i])
+
+    if labels is not None:
+        ax.legend()
+
     plt.show()
 
 
