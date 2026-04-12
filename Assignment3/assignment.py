@@ -5,52 +5,49 @@ import simulator as sim
 import math
 
 import plotter as pl
-from orbit_lib import ground_track
-
-# Global variables
-ri0 = None
-vi0 = None
-theta_G0 = 0
 
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
     def __init__(self):
-        self.theta_E = None
-        self.q_E = None
+        self.RK4_x = None
+        self.orbit_energy_plot = None
+        self.m = None
+        self.vi = None
         self.ri = None
+        self.verlet_x_past = None
+        self.verlet_x = None
+        self.leapfrog_x = None
         self.q = None
-        self.n = None
-        self.Me = None
-        self.w = None
-        self.i = None
-        self.omega = None
-        self.e = None
-        self.h = None
+        self.q_E = None
+        self.euler_x = None
         self.pos_plot = None
         self.ground_track_plot = None
-
+        self.theta_E = None
 
     def init(self, t):
 
-        # Catch variables from outside of scope
-        global ri0, vi0, theta_G0
-
-        # Retrieve orbit parameters from initial ri and vi
-        self.h, self.e, theta, self.omega, self.i, self.w = ol.orbit_params_from_state(ri0, vi0)
-
-        # Conversion madness! True anomaly [theta] -> Eccentric anomaly [E] -> Mean anomaly [Me]
-        self.Me = ol.mean_anomaly_from_true_anomaly(theta, self.e)
-
-        # Mean motion
-        a = self.h ** 2 / (ol.mu * (1 - self.e ** 2))
-        T = ol.orbital_period_from_semi_major_axis(a)
-        self.n = 2 * math.pi / T
-
+        # Satellite variables
         self.q = su.Quaternion() # Satellite rotation
-        self.ri = ri0  # Satellite position
+        self.ri = np.array([7378, 0, 0]) # Satellite position
+        self.vi = np.array([0, 0, 9]) # Satellite velocity
+
+        self.m = 8000 # Mass of the satellite [kg]
+
+        v_temp = math.sqrt(ol.mu / (ol.R_E + 800))
+        x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
+
+        # Position from each integration method
+        self.euler_x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
+        self.leapfrog_x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
+
+        self.verlet_x_past = None
+        self.verlet_x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
+
+        # Used for Assignment 3.2
+        self.RK4_x = np.concatenate([self.ri, self.vi])
 
         # Earth rotation variables
-        self.theta_E = theta_G0 # Offset to the rotation
+        self.theta_E = 0 # Offset to the rotation
         temp = ol.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
         #self.q_E = su.Quaternion()
@@ -59,19 +56,36 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.pos_plot = np.concatenate(([t], self.ri)) # Initialize the plot data
 
         lon, lat = ol.ground_track(self.ri, self.theta_E)
-        self.ground_track_plot = np.concatenate(([t], [lon, lat]))
+        self.ground_track_plot = np.concatenate(([t], [lon, lat])) # Initialize ground track data
+
+        # Convert all energies to array
+        self.orbit_energy_plot = np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m)]))
 
 
     def update(self, t, dt):
 
-        # Propagate mean anomaly to it's next value in regard to time step
-        self.Me = ol.angle_wrap_radians(self.Me + self.n * dt)
+        # Get the next "step" of the satellite
+        self.euler_x = su.step_euler(dt, t, self.euler_x, su.two_body)
+        self.leapfrog_x = su.step_leapfrog(dt, t, self.leapfrog_x, su.two_body)
+        self.verlet_x, self.verlet_x_past = su.step_verlet(dt, t, self.verlet_x, self.verlet_x_past, su.two_body), self.verlet_x
 
-        # Conversion madness! Mean anomaly [Me] -> Eccentric anomaly [E] -> True anomaly [theta]
-        theta = ol.true_anomaly_from_eccentric_anomaly(ol.eccentric_anomaly_from_mean_anomaly(self.Me, self.e), self.e)
+        # Used for Assignment 3.2
+        k1 = 10e-4
+        k2 = 10e-4
+        ei = ol.get_orbit_eccentricity_vector_state(self.RK4_x)
+        e = np.linalg.norm(ei).astype(float)
 
-        # Get the new ri, vi from updated theta
-        self.ri, vi = ol.state_from_orbit_params(self.h, self.e, theta, self.omega, self.i, self.w)
+        cos_theta = np.dot(ei, self.RK4_x[:3]) / (e * np.linalg.norm(self.RK4_x[:3]).astype(float))
+        ra = ol.get_orbit_apoapsis(self.RK4_x, e)
+        rp = ol.get_orbit_periapsis(self.RK4_x, e)
+        rc = ol.R_E + 1500
+
+        T = (k1 * (rc - ra)) if cos_theta > 0.9 else (k2 * (rc - rp)) if cos_theta < -0.9 else 0
+
+        ae = (T * self.RK4_x[3:] / np.linalg.norm(self.RK4_x[3:]).astype(float)) / self.m
+
+        self.RK4_x = su.step_RK4(dt, t, self.RK4_x, su.two_body, ae=ae)
+        self.ri = self.RK4_x[:3]  # Get position vector
 
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
@@ -83,6 +97,8 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         lon, lat = ol.ground_track(self.ri, self.theta_E) # Ground track
         self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
+
+        self.orbit_energy_plot = np.vstack((self.orbit_energy_plot, np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m)]))))
 
 
     def get(self):
@@ -96,13 +112,17 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def post_process(self, t, dt):
         # Plot orbit of satellite
-        file = su.log_pos("assignment2_position", self.pos_plot)
+        file = su.log_pos("assignment3_position", self.pos_plot)
         self.pos_plot = None # Clear the data after its saved
         pl.line_plot(file)
 
-        file = su.log_pos("assignment2_ground_track", self.ground_track_plot)
+        file = su.log_pos("assignment3_ground_track", self.ground_track_plot)
         self.ground_track_plot = None  # Clear the data after its saved
         pl.ground_tracking(file, "3DModels/earth_8k.jpg")
+
+        file = su.log_pos("assignment3_energy", self.orbit_energy_plot)
+        self.orbit_energy_plot = None  # Clear the data after its saved
+        pl.line_plot(file)
 
 
 def main():
@@ -110,43 +130,8 @@ def main():
   #scenario = ScenarioAssignment1()
   #sim.create_and_start_simulation(sim_config,scenario)
 
-  # Read the TLE file
-  file_path = "Assignment2/tle.txt"
-
-  try:
-      with open(file_path, "r") as f:
-          tle_text = f.read()
-
-  except FileNotFoundError:
-    print(f"Error: The file '{file_path}' was not found.")
-    return
-
-  # Get all necessary fields as arguments
-  args = ol.orbit_params_from_tle_params(tle_text, debug=True)
-
-  ### Convert arguments to values ###
-  JD = ol.epoch_to_julian_date(args[0])
-  theta_G = ol.sidereal_angle(JD)
-
-  # Julian Date information
-  print(f"Julian Date: {JD}")
-  print(f"Sidereal Angle: {theta_G} [{ol.rad2deg(theta_G):.2f}]")
-
-  ol.julian_date_to_iso(JD)
-
-  # Orbit params
-  ri, vi = ol.state_from_tle_params(args[1:])
-
-  #ol.orbit_propagation(ri, vi)
-
-  global ri0, vi0, theta_G0
-  ri0 = ri
-  vi0 = vi
-  theta_G0 = theta_G
-
-  T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
-
-  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
+  #sim_config = {'t_0': 0, 't_e': 20000, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000, 'visualise': True}
+  sim_config = {'t_0': 0, 't_e': 53000, 't_step': 100, 'speed_factor': 1, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)
 

@@ -350,7 +350,7 @@ def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: f
     :param omega: Right Ascension of Ascending Node (RAAN) [radians]
     :param i: Inclination [radians]
     :param w: Argument of perihelion [radians]
-    :param u: Standard gravitational acceleration (default: Earth's μ) [m/s**2]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
     :return: Tuple of two np.ndarray elements:
              - Position vector in ECI frame [km]
              - Velocity vector in ECI frame [km/s]
@@ -395,11 +395,12 @@ def state_from_tle_params(args):
 
 
 # Algorithm 4
-def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[float, float, float, float, float, float]:
+def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray, u: float=mu) -> tuple[float, float, float, float, float, float]:
     """
     Calculates classical orbital elements from position and velocity vectors.
     :param ri: Position vector in ECI frame [km]
     :param vi: Velocity vector in ECI frame [km/s]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
     :return: Tuple containing orbital parameters:
              - Specific angular momentum [km**2/s]
              - Eccentricity
@@ -410,7 +411,7 @@ def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[float, floa
     """
     # Normalize position and velocity vectors
     r  = np.linalg.norm(ri)
-    v  = np.linalg.norm(vi)
+    # v  = np.linalg.norm(vi) # Used by older formulas (eccentricity)
 
     # Calculate radial velocity
     vr = np.dot(ri ,vi) / r
@@ -433,7 +434,8 @@ def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[float, floa
         omega = 2 * math.pi - omega
 
     # Eccentricity
-    ei = ((v ** 2 - mu / r) * ri - vi * vr * r) / mu
+    # ei = ((v ** 2 - u / r) * ri - vi * vr * r) / mu
+    ei = get_orbit_eccentricity_vector(ri, vi, u) # Updated function from later assignment
     e = np.linalg.norm(ei).astype(float)
 
     # Argument of perigee
@@ -539,3 +541,86 @@ def julian_date_to_iso(JD: float) -> str:
     """
     t = Time(JD, format='jd', scale='utc') # Converts julian date to utc time
     return t.datetime.isoformat() # Return ISO format of time
+
+
+###################################
+# Assignment 3 | Algorithms       #
+###################################
+
+def get_orbit_energy_state(x: np.ndarray, m: float, u: float=mu) -> float:
+    """
+    Calculates the total mechanical energy of a satellite in orbit from a full state vector.
+    :param x: State vector containing position [km] and velocity [km/s]
+    :param m: Mass of the satellite [kg]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Total orbital energy [MJ]
+    """
+    return get_orbit_energy(x[:3], x[3:], m, u)
+
+def get_orbit_energy(ri: np.ndarray, vi: np.ndarray, m: float, u: float=mu) -> float:
+    """
+    Calculates the total mechanical energy of a satellite in orbit from position and velocity vectors.
+    :param ri: Position vector in ECI frame [km]
+    :param vi: Velocity vector in ECI frame [km/s]
+    :param m: Mass of the satellite [kg]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Total orbital energy [MJ]
+    """
+    r = np.linalg.norm(ri).astype(float)
+    v = np.linalg.norm(vi).astype(float)
+
+    return m * (0.5*v**2 - u / r)
+
+def get_orbit_eccentricity_vector_state(x: np.ndarray, u: float=mu) -> np.ndarray:
+    """
+    Compute the orbital eccentricity vector from a full state vector.
+    :param x: State vector containing position [km] and velocity [km/s]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Eccentricity vector
+    """
+    return get_orbit_eccentricity_vector(x[:3], x[3:], u)
+
+def get_orbit_eccentricity_vector(ri: np.ndarray, vi: np.ndarray, u: float = mu) -> np.ndarray:
+    """
+    Compute the orbital eccentricity vector from position and velocity vectors.
+    :param ri: Position vector in ECI frame [km]
+    :param vi: Velocity vector in ECI frame [km/s]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Eccentricity vector
+    """
+    r = np.linalg.norm(ri).astype(float)
+    hi = np.cross(ri, vi)
+
+    return np.cross(vi, hi) / u - ri / r
+
+def get_orbit_apoapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
+    """
+    Compute the apoapsis distance of an orbit from a full state vector.
+    :param x: State vector containing position [km] and velocity [km/s]
+    :param e: Eccentricity (optional)
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Apoapsis distance [km]
+    """
+    ri = x[:3]
+    vi = x[3:]
+
+    # Calculate the orbital eccentricity vector if it is not given
+    e = np.linalg.norm(get_orbit_eccentricity_vector(ri, vi, u)) if e is None else e
+
+    return np.linalg.norm(np.cross(ri, vi)).astype(float) ** 2 / (u * (1 - e))
+
+def get_orbit_periapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
+    """
+    Compute the periapsis distance of an orbit from a full state vector.
+    :param x: State vector containing position [km] and velocity [km/s]
+    :param e: Eccentricity (optional)
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Periapsis distance [km]
+    """
+    ri = x[:3]
+    vi = x[3:]
+
+    # Calculate the orbital eccentricity vector if it is not given
+    e = np.linalg.norm(get_orbit_eccentricity_vector(ri, vi, u)) if e is None else e
+
+    return np.linalg.norm(np.cross(ri, vi)).astype(float) ** 2 / (u * (1 + e))

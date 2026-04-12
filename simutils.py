@@ -1,5 +1,8 @@
 import datetime as dt
+from typing import Callable
+
 import numpy as np
+import orbit_lib as ol
 from vispy.scene import MatrixTransform as Mat4
 from vispy.util.quaternion import Quaternion as Quat
 
@@ -195,11 +198,103 @@ def log_pos(name,pos,path='data/'):
 # Assignment 3 | Algorithms       #
 ###################################
 
-def step_euler(h, t_curr, x_curr, f):
+# f(t, x)
+def two_body(t: float, x: np.ndarray, ae: np.ndarray=None,u: float=ol.mu) -> np.ndarray:
+    """
+    Compute the time derivative of the state vector for the classical two-body problem.
+
+    The state vector x contains both the position and velocity vectors,
+    formatted as: [rx, ry, rz, vx, vy, vz].
+
+    :param t: Current time [s]
+    :param x: State vector containing both position vector and velocity vector [km | km/s]
+    :param ae: External acceleration vector (default: 0) [km/s**2]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: State vector with the time derivative of x [km/s | km/s**2]
+    """
+    ri = x[:3] # Get position vector
+    vi = x[3:] # Get velocity vector
+
+    r = np.linalg.norm(ri).astype(float) # Get distance
+    ai = -u/r**3 * ri + (np.zeros(3) if ae is None else ae) # Get acceleration vector + external acceleration
+    return np.concatenate([vi, ai])
+
+# Numeric solver functions
+def step_euler(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[[float, np.ndarray], np.ndarray]) -> np.ndarray:
+    """
+    Performs one step of the explicit Euler method for a first-order ODE.
+
+    The state vector x contains both the position and velocity vectors,
+    formatted as: [rx, ry, rz, vx, vy, vz].
+
+    :param h: Time step size [s]
+    :param t_curr: Current time [s]
+    :param x_curr: State vector containing position [km] and velocity [km/s]
+    :param f: Function f(t, x) returning dx/dt
+    :return: State vector at time t + h [km | km/s]
+    """
     return x_curr + h * f(t_curr, x_curr)
 
-def euler_leapfrog(h, t_curr, x_curr, f):
-    pass
+def step_leapfrog(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[[float, np.ndarray], np.ndarray]) -> np.ndarray:
+    """
+    Performs one step of the explicit Leapfrog method for a first-order ODE.
 
-def step_verlet(h, t_curr, x_curr, x_prev, f):
-    pass
+    The state vector x contains both the position and velocity vectors,
+    formatted as: [rx, ry, rz, vx, vy, vz].
+
+    :param h: Time step size [s]
+    :param t_curr: Current time [s]
+    :param x_curr: State vector containing position [km] and velocity [km/s]
+    :param f: Function f(t, x) returning dx/dt
+    :return: State vector at time t + h [km | km/s]
+    """
+    # Current values
+    dx = f(t_curr, x_curr) # [vx, vy, vz, ax, ay, az]
+    v_half = dx[:3] + 0.5 * dx[3:] * h
+
+    # New values
+    r_new  = x_curr[:3] + v_half * h
+    v_new = 2 * v_half - x_curr[3:] # TODO: Ask about recomputing acceleration
+
+    return np.concatenate([r_new, v_new])
+
+def step_verlet(h: float, t_curr: float, x_curr: np.ndarray, x_prev: np.ndarray, f: Callable[[float, np.ndarray], np.ndarray]) -> np.ndarray:
+    if x_prev is None: # TODO: Clean this up!!!
+        r_curr = x_curr[:3]
+        v_curr = x_curr[3:]
+
+        a_curr = f(t_curr, x_curr)[3:]
+        r_next = r_curr + v_curr * h + 0.5 * a_curr * h**2
+
+        return np.concatenate([r_next, v_curr])
+
+    # Extract positions
+    r_curr = x_curr[:3]
+    r_prev = x_prev[:3]
+
+    # Get acceleration from f
+    a_curr = f(t_curr, x_curr)[3:]
+
+    # Verlet position update
+    r_next = 2 * r_curr - r_prev + a_curr * h ** 2
+
+    # AI Slop!!! No idea of its accuracy but velocity is optional in verlet
+    v_next = (r_next - r_prev) / (2 * h)
+    return np.concatenate([r_next, v_next])
+
+def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.ndarray], ae: np.ndarray=None) -> np.ndarray:
+    t1 = t_curr
+    t2 = t3 = t_curr + 0.5 * h
+    t4 = t_curr + h
+
+    x1 = x_curr
+    x2 = x_curr + 0.5 * h * f(t1, x1, ae=ae)
+    x3 = x_curr + 0.5 * h * f(t2, x2, ae=ae)
+    x4 = x_curr + 0.5 * h * f(t3, x3, ae=ae)
+
+    f1 = f(t1, x1, ae=ae)
+    f2 = f(t2, x2, ae=ae)
+    f3 = f(t3, x3, ae=ae)
+    f4 = f(t4, x4, ae=ae)
+
+    return x_curr + h / 6 * (f1 + 2 * f2 + 2 * f3 + f4)
