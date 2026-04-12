@@ -9,14 +9,23 @@ import math
 import plotter as pl
 from orbit_lib import ground_track
 
-# Global variables
-ri0 = None
-vi0 = None
-theta_G0 = 0
-
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
-    def __init__(self):
+    def __init__(self, args: list[str]):
+
+        ### Convert arguments to values ###
+        JD = ol.epoch_to_julian_date(args[0])
+        self.theta_G0 = ol.sidereal_angle(JD)
+
+        # Julian Date information
+        print(f"Julian Date: {JD}")
+        print(f"Sidereal Angle: {self.theta_G0} [{ol.rad2deg(self.theta_G0):.2f}]")
+
+        print(ol.julian_date_to_iso(JD))
+
+        # Orbit params
+        self.ri0, self.vi0 = ol.state_from_tle_params(args[1:])
+
         self.theta_E = None
         self.q_E = None
         self.ri = None
@@ -34,11 +43,8 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def init(self, t):
 
-        # Catch variables from outside of scope
-        global ri0, vi0, theta_G0
-
         # Retrieve orbit parameters from initial ri and vi
-        self.h, self.e, theta, self.omega, self.i, self.w = ol.orbit_params_from_state(ri0, vi0)
+        self.h, self.e, theta, self.omega, self.i, self.w = ol.orbit_params_from_state(self.ri0, self.vi0)
 
         # Conversion madness! True anomaly [theta] -> Eccentric anomaly [E] -> Mean anomaly [Me]
         self.Me = ol.mean_anomaly_from_true_anomaly(theta, self.e)
@@ -49,10 +55,10 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.n = 2 * math.pi / T
 
         self.q = su.Quaternion() # Satellite rotation
-        self.ri = ri0  # Satellite position
+        self.ri = self.ri0  # Satellite position
 
         # Earth rotation variables
-        self.theta_E = theta_G0 # Offset to the rotation
+        self.theta_E = self.theta_G0 # Offset to the rotation
         temp = ol.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
         #self.q_E = su.Quaternion()
@@ -113,9 +119,9 @@ def main():
   #sim.create_and_start_simulation(sim_config,scenario)
 
   # Read the TLE file
-  file_path = "Assignment2/tle.txt"
-  #file_path = "Assignment2/SAT00005_TLE.txt"
-  #file_path = "Assignment2/MOLNIYA.txt"
+  file_path = "Assignment2/VANGUARD_1_TLE.txt"
+  #file_path = "Assignment2/SAT_40613_TLE.txt"
+  #file_path = "Assignment2/MOLNIYA_1_91_TLE.txt"
 
   try:
       with open(file_path, "r") as f:
@@ -128,30 +134,10 @@ def main():
   # Get all necessary fields as arguments
   args = ol.orbit_params_from_tle_params(tle_text, debug=True)
 
-  ### Convert arguments to values ###
-  JD = ol.epoch_to_julian_date(args[0])
-  theta_G = ol.sidereal_angle(JD)
-
-  # Julian Date information
-  print(f"Julian Date: {JD}")
-  print(f"Sidereal Angle: {theta_G} [{ol.rad2deg(theta_G):.2f}]")
-
-  ol.julian_date_to_iso(JD)
-
-  # Orbit params
-  ri, vi = ol.state_from_tle_params(args[1:])
-
-  #ol.orbit_propagation(ri, vi)
-
-  global ri0, vi0, theta_G0
-  ri0 = ri
-  vi0 = vi
-  theta_G0 = theta_G
-
   T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
 
   sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
-  scenario = ScenarioAssignment1()
+  scenario = ScenarioAssignment1(args)
   sim.create_and_start_simulation(sim_config,scenario)
 
 
