@@ -21,7 +21,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.q_E = None
         self.euler_x = None
         self.pos_plot = None
-        self.ground_track_plot = None
         self.theta_E = None
 
     def init(self, t):
@@ -53,9 +52,6 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Data logging variables
         self.pos_plot = np.concatenate(([t], self.ri)) # Initialize the plot data
-
-        lon, lat = ol.ground_track(self.ri, self.theta_E)
-        self.ground_track_plot = np.concatenate(([t], [lon, lat])) # Initialize ground track data
 
         # Convert all energies to array
         self.orbit_energy_plot = np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m)]))
@@ -93,10 +89,6 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Log orbit data
         self.pos_plot = np.vstack((self.pos_plot, np.concatenate(([t], self.ri))))
-
-        lon, lat = ol.ground_track(self.ri, self.theta_E) # Ground track
-        self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
-
         self.orbit_energy_plot = np.vstack((self.orbit_energy_plot, np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m)]))))
 
 
@@ -114,10 +106,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         file = su.log_pos("assignment3_position", self.pos_plot)
         self.pos_plot = None # Clear the data after its saved
         pl.line_plot(file)
-
-        file = su.log_pos("assignment3_ground_track", self.ground_track_plot)
-        self.ground_track_plot = None  # Clear the data after its saved
-        pl.ground_tracking(file, "3DModels/earth_8k.jpg")
 
         file = su.log_pos("assignment3_energy", self.orbit_energy_plot)
         self.orbit_energy_plot = None  # Clear the data after its saved
