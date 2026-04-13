@@ -9,6 +9,7 @@ import plotter as pl
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
     def __init__(self):
+        self._x = None
         self.RK4_x = None
         self.orbit_energy_plot = None
         self.m = None
@@ -42,8 +43,9 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.verlet_x_past = None
         self.verlet_x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
 
+        self.RK4_x = np.concatenate([[ol.R_E + 800, 0, 0],[0, v_temp, 0]])
         # Used for Assignment 3.2
-        self.RK4_x = np.concatenate([self.ri, self.vi])
+        self._x = np.concatenate([self.ri, self.vi])
 
         # Earth rotation variables
         self.theta_E = 0 # Offset to the rotation
@@ -58,7 +60,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.ground_track_plot = np.concatenate(([t], [lon, lat])) # Initialize ground track data
 
         # Convert all energies to array
-        self.orbit_energy_plot = np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m)]))
+        self.orbit_energy_plot = np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m), ol.get_orbit_energy_state(self.RK4_x, self.m)]))
 
 
     def update(self, t, dt):
@@ -67,24 +69,25 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.euler_x = su.step_euler(dt, t, self.euler_x, su.two_body)
         self.leapfrog_x = su.step_leapfrog(dt, t, self.leapfrog_x, su.two_body)
         self.verlet_x, self.verlet_x_past = su.step_verlet(dt, t, self.verlet_x, self.verlet_x_past, su.two_body), self.verlet_x
+        self.RK4_x = su.step_RK4(dt, t, self.RK4_x, su.two_body)
 
         # Used for Assignment 3.2
-        k1 = 10e-4
-        k2 = 10e-4
-        ei = ol.get_orbit_eccentricity_vector_state(self.RK4_x)
+        k1 = 10e-3
+        k2 = 10e-3
+        ei = ol.get_orbit_eccentricity_vector_state(self._x)
         e = np.linalg.norm(ei).astype(float)
 
-        cos_theta = np.dot(ei, self.RK4_x[:3]) / (e * np.linalg.norm(self.RK4_x[:3]).astype(float))
-        ra = ol.get_orbit_apoapsis(self.RK4_x, e)
-        rp = ol.get_orbit_periapsis(self.RK4_x, e)
+        cos_theta = np.dot(ei, self._x[:3]) / (e * np.linalg.norm(self._x[:3]).astype(float))
+        ra = ol.get_orbit_apoapsis(self._x, e)
+        rp = ol.get_orbit_periapsis(self._x, e)
         rc = ol.R_E + 1500
 
         T = (k1 * (rc - ra)) if cos_theta > 0.9 else (k2 * (rc - rp)) if cos_theta < -0.9 else 0
 
-        ae = (T * self.RK4_x[3:] / np.linalg.norm(self.RK4_x[3:]).astype(float)) / self.m
+        ae = (T * self._x[3:] / np.linalg.norm(self._x[3:]).astype(float)) / self.m
 
-        self.RK4_x = su.step_RK4(dt, t, self.RK4_x, su.two_body, ae=ae)
-        self.ri = self.RK4_x[:3]  # Get position vector
+        self._x = su.step_RK4(dt, t, self._x, su.two_body, ae=ae)
+        self.ri = self._x[:3]  # Get position vector
 
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
@@ -97,7 +100,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         lon, lat = ol.ground_track(self.ri, self.theta_E) # Ground track
         self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
 
-        self.orbit_energy_plot = np.vstack((self.orbit_energy_plot, np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m)]))))
+        self.orbit_energy_plot = np.vstack((self.orbit_energy_plot, np.concatenate(([t], [ol.get_orbit_energy_state(self.euler_x, self.m), ol.get_orbit_energy_state(self.leapfrog_x, self.m), ol.get_orbit_energy_state(self.verlet_x, self.m), ol.get_orbit_energy_state(self.RK4_x, self.m)]))))
 
 
     def get(self):
@@ -111,17 +114,17 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def post_process(self, t, dt):
         # Plot orbit of satellite
-        file = su.log_pos("assignment3_position", self.pos_plot)
+        file = su.log_pos("assignment4_position", self.pos_plot)
         self.pos_plot = None # Clear the data after its saved
         pl.line_plot(file)
 
-        file = su.log_pos("assignment3_ground_track", self.ground_track_plot)
+        file = su.log_pos("assignment4_ground_track", self.ground_track_plot)
         self.ground_track_plot = None  # Clear the data after its saved
         pl.ground_tracking(file, "3DModels/earth_8k.jpg")
 
-        file = su.log_pos("assignment3_energy", self.orbit_energy_plot)
+        file = su.log_pos("assignment4_energy", self.orbit_energy_plot)
         self.orbit_energy_plot = None  # Clear the data after its saved
-        pl.line_plot(file, labels=["Euler", "Leapfrog", "Verlet"])
+        pl.line_plot(file, labels=["Euler", "Leapfrog", "Verlet", "RK4"])
 
 
 def main():

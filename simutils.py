@@ -290,7 +290,7 @@ def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.nd
     x1 = x_curr
     x2 = x_curr + 0.5 * h * f(t1, x1, ae=ae)
     x3 = x_curr + 0.5 * h * f(t2, x2, ae=ae)
-    x4 = x_curr + 0.5 * h * f(t3, x3, ae=ae)
+    x4 = x_curr + h * f(t3, x3, ae=ae)
 
     f1 = f(t1, x1, ae=ae)
     f2 = f(t2, x2, ae=ae)
