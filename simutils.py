@@ -194,6 +194,7 @@ def log_pos(name,pos,path='data/'):
 
     return file_name
 
+
 ###################################
 # Assignment 3 | Algorithms       #
 ###################################
@@ -298,3 +299,20 @@ def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.nd
     f4 = f(t4, x4, ae=ae)
 
     return x_curr + h / 6 * (f1 + 2 * f2 + 2 * f3 + f4)
+
+
+###################################
+# Assignment 4 | Algorithms       #
+###################################
+
+def quaternion_to_dcm():
+    pass
+
+def axis_angle_to_dcm():
+    pass
+
+def dcm_to_quaternion():
+    pass
+
+def euler_to_quaternion():
+    pass
