@@ -330,14 +330,6 @@ def sidereal_angle(JD: float) -> float:
     theta_G  = theta_G0 + w_E * (24 * 3600 * ((JD + 0.5) % 1.0))
     return angle_wrap_radians(theta_G)
 
-    """# AI slop due to original function being misaligned
-    T = (JD - 2451545.0) / 36525.0
-    theta_G = deg2rad(
-        280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T**2 - T**3 / 38710000.0
-    )
-
-    return angle_wrap_radians(theta_G)"""
-
 # Algorithm 2
 def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: float, w: float, u: float=mu) -> tuple[np.ndarray, np.ndarray]:
     """
