@@ -238,7 +238,7 @@ def step_euler(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[[float, 
 
 def step_leapfrog(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[[float, np.ndarray], np.ndarray]) -> np.ndarray:
     """
-    Performs one step of the explicit Leapfrog method for a first-order ODE.
+    Performs one step of the Leapfrog method for a first-order ODE.
 
     The state vector x contains both the position and velocity vectors,
     formatted as: [rx, ry, rz, vx, vy, vz].
@@ -260,14 +260,25 @@ def step_leapfrog(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[[floa
     return np.concatenate([r_new, v_new])
 
 def step_verlet(h: float, t_curr: float, x_curr: np.ndarray, x_prev: np.ndarray, f: Callable[[float, np.ndarray], np.ndarray]) -> np.ndarray:
-    if x_prev is None: # TODO: Clean this up!!!
-        r_curr = x_curr[:3]
-        v_curr = x_curr[3:]
+    """
+    Performs one step of the Verlet method for a first-order ODE.
 
-        a_curr = f(t_curr, x_curr)[3:]
-        r_next = r_curr + v_curr * h + 0.5 * a_curr * h**2
+    The state vector x contains both the position and velocity vectors,
+    formatted as: [rx, ry, rz, vx, vy, vz].
 
-        return np.concatenate([r_next, v_curr])
+    Velocity is reconstructed for post-processing purposes.
+
+    :param h: Time step size [s]
+    :param t_curr: Current time [s]
+    :param x_curr: Current state vector containing position [km] and velocity [km/s]
+    :param x_prev: Previous state vector containing position [km] and velocity [km/s]
+    :param f: Function f(t, x) returning dx/dt
+    :return: State vector at time t + h [km | km/s]
+    """
+    # Could use r_next = r + v * h + 0.5 * a * h**2
+    # but due to it being identical to leapfrog its used instead.
+    if x_prev is None: # First step
+        return step_leapfrog(h, t_curr, x_curr, f) # This also updates velocity
 
     # Extract positions
     r_curr = x_curr[:3]
@@ -284,6 +295,19 @@ def step_verlet(h: float, t_curr: float, x_curr: np.ndarray, x_prev: np.ndarray,
     return np.concatenate([r_next, v_next])
 
 def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.ndarray], ae: np.ndarray=None) -> np.ndarray:
+    """
+    Performs one step of the Runge-Kutta method for a first-order ODE.
+
+    The state vector x contains both the position and velocity vectors,
+    formatted as: [rx, ry, rz, vx, vy, vz].
+
+    :param h: Time step size [s]
+    :param t_curr: Current time [s]
+    :param x_curr: Current state vector containing position [km] and velocity [km/s]
+    :param f: Function f(t, x) returning dx/dt
+    :param ae: External acceleration vector (default: 0) [km/s**2]
+    :return: State vector at time t + h [km | km/s]
+    """
     t1 = t_curr
     t2 = t3 = t_curr + 0.5 * h
     t4 = t_curr + h
@@ -305,8 +329,28 @@ def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.nd
 # Assignment 4 | Algorithms       #
 ###################################
 
-def quaternion_to_dcm():
-    pass
+def quaternion_to_dcm(q: Quaternion):
+    """
+    Converts a quaternion to a 3x3 rotation matrix (DCM).
+
+    The quaternion should be normalized to produce a valid rotation matrix.
+
+    :param q: Quaternion representing the rotation
+    :return: 3x3 rotation matrix
+    """
+    # Unpack variables
+    w, x, y, z = q
+
+    # Temp vars
+    ww, xx, yy, zz = w * w, x * x, y * y, z * z
+    wx, wy, wz     = w * x, w * y, w * z
+    xy, xz, yz     = x * y, x * z, y * z
+
+    return np.array([
+        [ww + xx - yy - zz, 2 * (xy + wz), 2 * (xz - wy)],
+        [2 * (xy - wz), ww - xx + yy - zz, 2 * (yz + wx)],
+        [2 * (xz + wy), 2 * (yz - wx), ww - xx - yy + zz]
+    ])
 
 def axis_angle_to_dcm():
     pass
