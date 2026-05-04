@@ -1,6 +1,7 @@
 import datetime as dt
 from typing import Callable
 
+import math
 import numpy as np
 import orbit_lib as ol
 from vispy.scene import MatrixTransform as Mat4
@@ -331,11 +332,11 @@ def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.nd
 
 def quaternion_to_dcm(q: Quaternion):
     """
-    Converts a quaternion to a 3x3 rotation matrix (DCM).
+    Converts a unit quaternion to a 3x3 rotation matrix (DCM).
 
     The quaternion should be normalized to produce a valid rotation matrix.
 
-    :param q: Quaternion representing the rotation
+    :param q: Unit quaternion representing the rotation
     :return: 3x3 rotation matrix
     """
     # Unpack variables
@@ -352,11 +353,96 @@ def quaternion_to_dcm(q: Quaternion):
         [2 * (xz + wy), 2 * (yz - wx), ww - xx - yy + zz]
     ])
 
-def axis_angle_to_dcm():
-    pass
+def axis_angle_to_dcm(u: np.ndarray, theta: float):
+    """
+    Converts axis-angle representation to a 3x3 rotation matrix (DCM).
 
-def dcm_to_quaternion():
-    pass
+    :param u: Unit vector representing the rotation axis
+    :param theta: Rotation angle [rad]
+    :return: 3x3 rotation matrix
+    """
+    norm = np.linalg.norm(u)
+    if norm == 0: # Handles invalid values
+        raise ValueError("Rotation axis 'u' must be non-zero!")
 
-def euler_to_quaternion():
-    pass
+    u = u / norm # Ensures that u is a unit vector
+
+    I = np.eye(3)
+    su = np.array([
+        [    0, -u[2],  u[1]],
+        [ u[2],    0 , -u[0]],
+        [-u[1],  u[0],     0]
+    ])
+
+    return I + math.sin(theta) * su + (1 - math.cos(theta)) * su @ su
+
+def dcm_to_quaternion(R: np.ndarray): # Shepperd’s algorithm
+    """
+
+    :param R:
+    :return:
+    """
+    q = np.zeros(4)
+    trR = np.linalg.trace(R)
+
+    if trR > 0:
+        q[0] = 0.5 * math.sqrt(1 + trR)
+        _q = 4 * q[0]  # Temp variable for calculations
+
+        q[1] = (R[1, 2] - R[2, 1]) / _q
+        q[2] = (R[2, 0] - R[0, 2]) / _q
+        q[3] = (R[0, 1] - R[1, 0]) / _q
+
+    else:
+        D = R.diagonal()
+        i, j, k = np.roll(np.arange(3), -np.argmax(D))
+        q[i + 1] = 0.5 * math.sqrt(1 + R[i, i] - R[j, j] - R[k, k])
+        _q = 4 * q[i + 1]  # Temp variable for calculations
+
+        q[j + 1] = (R[i, j] + R[j, i]) / _q
+        q[k + 1] = (R[i, k] + R[k, i]) / _q
+        q[0]     = (R[j, k] - R[k, j]) / _q
+
+    return Quaternion(np.sign(q[0]) * q).conjugated()
+
+def euler_to_quaternion(roll: float, pitch: float, yaw: float): # Function not needed! The quaternion_from_roll_pitch_yaw_sequence from orbit library instead
+    """
+    Return the quaternion for a roll-pitch-yaw (RPY) sequence.
+
+    Rotations are applied in the following order:
+    - Roll  (rotation about x-axis)
+    - Pitch (rotation about y-axis)
+    - Yaw   (rotation about z-axis)
+
+    :param roll: Roll angle [radians]
+    :param pitch: Pitch angle [radians]
+    :param yaw: Yaw angle [radians]
+    :return: Quaternion representing the rotation
+    """
+    return ol.quaternion_from_roll_pitch_yaw_sequence(roll, pitch, yaw)
+
+def quaternion_to_euler(q: Quaternion):
+
+    # Unpack variables
+    w, x, y, z = q
+
+    # Temp vars
+    ww, xx, yy, zz = w * w, x * x, y * y, z * z
+    wx, wy, wz = w * x, w * y, w * z
+    xy, xz, yz = x * y, x * z, y * z
+
+    roll  = math.atan2(2 * (wx + yz), ww + zz - xx - yy)
+    pitch = math.asin(2 * (wy - xz))
+    yaw   = math.atan2(2 * (wz + xy), ww + xx - yy - zz)
+    return roll, pitch, yaw
+
+def dcm_to_euler(R: np.ndarray):
+
+    roll  = math.atan2(R[2, 1], R[2, 2])
+    pitch = math.asin(-R[2, 0])
+    yaw   = math.atan2(R[1, 0], R[0, 0])
+    return roll, pitch, yaw
+
+
+def euler_to_dcm(roll: float, pitch: float, yaw: float): # Function not needed! The rotation_matrix_from_roll_pitch_yaw_sequence from orbit library instead
+    return ol.rotation_matrix_from_roll_pitch_yaw_sequence(roll, pitch, yaw)
