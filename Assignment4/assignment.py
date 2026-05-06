@@ -1,6 +1,7 @@
 import numpy as np
 import simutils as su
 import orbit_lib as ol
+import sat_lib as sl
 import simulator as sim
 import math
 
@@ -9,19 +10,31 @@ import plotter as pl
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
     def __init__(self):
+        self.body = None
         self.vi = None
         self.ri = None
         self.q  = None
         self.q_E = None
+        self.tau = None
 
     def init(self, t):
         self.ri = np.zeros(3)
-        self.q = su.Quaternion()
+        q0 = su.Quaternion([1, 0, 0, 0])
+        w0 = np.array([0, 0, 5])
+        J = np.array([
+            [2,   1,   0],
+            [1,  10, 0.1],
+            [0, 0.1, 2.5],
+        ])
+        self.tau = np.array([0, 0, 0])
+        self.body = sl.RigidBody(q0, w0, J)
+
         self.q_E = su.Quaternion()
 
 
     def update(self, t, dt):
-        pass
+        self.body.update(t, dt, self.tau)
+        self.q = self.body.q
 
 
     def get(self):

@@ -41,20 +41,31 @@ class Quaternion:
         
     def __repr__(self):
         return "Quaternion: [{}]".format(",".join([str(x) for x in self.q]))
-    
+
+
+    # Function changed to work with assignment 4.
+    # An easy way of converting class to numpy array
     def __getitem__(self,index):
-        if type(index) == slice:
-            if index.stop < index.start:
-                raise IndexError("starting index should be smaller than ending index")
-            elif index.start in range(0,len(self)+1) and index.stop in range(0,len(self)+1):
-                return np.array([self[i] for i in range(index.start,index.stop+1)])
-            else:
-                raise IndexError("Indexes out of bounds")
+        if isinstance(index, slice): # Optimized by the help of AI
+            start, stop, step = index.indices(len(self.q))
+            return np.array([self.q[i] for i in range(start, stop, step)])
         else:
-            if index > 3:
-                raise IndexError("Index out of bounds")
-            else:
-                return self.q[index]
+            return self.q[index]
+
+    def __setitem__(self,index,value):
+        if isinstance(index, slice): # "Slice" multiple values
+            start, stop, step = index.indices(len(self.q))
+            indices = list(range(start, stop, step))
+
+            # Both given indecision and replaced values need to math in size
+            if len(indices) != len(value):
+                raise ValueError("Length mismatch in slice assignment!")
+
+            for i, v in zip(indices, value):
+                self.q[i] = v
+
+        else: # Single value
+            self.q[index] = value
 
     def __add__(self,other):
         return Quaternion(self.q+other.q)
@@ -72,7 +83,7 @@ class Quaternion:
         return 1/other*self
 
     def __matmul__(self,other):
-        return Quaternion([self[0]*other[0]-np.dot(self[1:3],other[1:3]), *(self[0]*other[1:3]+other[0]*self[1:3]+np.cross(self[1:3],other[1:3]))])
+        return Quaternion([self[0]*other[0]-np.dot(self[1:],other[1:]), *(self[0]*other[1:]+other[0]*self[1:]+np.cross(self[1:],other[1:]))])
     
     def inverted(self):
         mag = self.magnitude()
@@ -81,7 +92,7 @@ class Quaternion:
         return 1.0/mag**2.0*self.conjugated()
     
     def conjugated(self):
-        return Quaternion([self[0],*(-self[1:3])])
+        return Quaternion([self[0],*(-self[1:])])
 
     def normalized(self):
         mag = self.magnitude()
@@ -94,7 +105,7 @@ class Quaternion:
         self.q /= mag**2.0
     
     def conjugate(self):
-        self.q = np.array([self[0],*(-self[1:3])])
+        self.q = np.array([self[0],*(-self[1:])])
     
     def normalize(self):
         mag = self.magnitude()
@@ -107,7 +118,7 @@ class Quaternion:
 
     def rotate(self, u):
         v = self@Quaternion(u)@self.conjugated()
-        return v[1:3]
+        return v[1:]
 
 def read_TLE_file(file_name,satellite_name=''):
   def validate_entry(Name,line1,line2):
@@ -314,14 +325,14 @@ def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.nd
     t4 = t_curr + h
 
     x1 = x_curr
-    x2 = x_curr + 0.5 * h * f(t1, x1, ae=ae)
-    x3 = x_curr + 0.5 * h * f(t2, x2, ae=ae)
-    x4 = x_curr + h * f(t3, x3, ae=ae)
+    x2 = x_curr + 0.5 * h * f(t1, x1, ae)
+    x3 = x_curr + 0.5 * h * f(t2, x2, ae)
+    x4 = x_curr + h * f(t3, x3, ae)
 
-    f1 = f(t1, x1, ae=ae)
-    f2 = f(t2, x2, ae=ae)
-    f3 = f(t3, x3, ae=ae)
-    f4 = f(t4, x4, ae=ae)
+    f1 = f(t1, x1, ae)
+    f2 = f(t2, x2, ae)
+    f3 = f(t3, x3, ae)
+    f4 = f(t4, x4, ae)
 
     return x_curr + h / 6 * (f1 + 2 * f2 + 2 * f3 + f4)
 
@@ -330,7 +341,7 @@ def step_RK4(h: float, t_curr: float, x_curr: np.ndarray, f: Callable[..., np.nd
 # Assignment 4 | Algorithms       #
 ###################################
 
-def quaternion_to_dcm(q: Quaternion):
+def quaternion_to_dcm(q: Quaternion) -> np.ndarray:
     """
     Converts a unit quaternion to a 3x3 rotation matrix (DCM).
 
@@ -353,7 +364,7 @@ def quaternion_to_dcm(q: Quaternion):
         [2 * (xz + wy), 2 * (yz - wx), ww - xx - yy + zz]
     ])
 
-def axis_angle_to_dcm(u: np.ndarray, theta: float):
+def axis_angle_to_dcm(u: np.ndarray, theta: float) -> np.ndarray:
     """
     Converts axis-angle representation to a 3x3 rotation matrix (DCM).
 
@@ -376,7 +387,7 @@ def axis_angle_to_dcm(u: np.ndarray, theta: float):
 
     return I + math.sin(theta) * su + (1 - math.cos(theta)) * su @ su
 
-def dcm_to_quaternion(R: np.ndarray): # Shepperd’s algorithm
+def dcm_to_quaternion(R: np.ndarray) -> Quaternion: # Shepperd’s algorithm
     """
 
     :param R:
@@ -405,7 +416,7 @@ def dcm_to_quaternion(R: np.ndarray): # Shepperd’s algorithm
 
     return Quaternion(np.sign(q[0]) * q).conjugated()
 
-def euler_to_quaternion(roll: float, pitch: float, yaw: float): # Function not needed! The quaternion_from_roll_pitch_yaw_sequence from orbit library instead
+def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Quaternion: # Function not needed! The quaternion_from_roll_pitch_yaw_sequence from orbit library instead
     """
     Return the quaternion for a roll-pitch-yaw (RPY) sequence.
 
@@ -421,7 +432,7 @@ def euler_to_quaternion(roll: float, pitch: float, yaw: float): # Function not n
     """
     return ol.quaternion_from_roll_pitch_yaw_sequence(roll, pitch, yaw)
 
-def quaternion_to_euler(q: Quaternion):
+def quaternion_to_euler(q: Quaternion) -> tuple[float, float, float]:
 
     # Unpack variables
     w, x, y, z = q
@@ -436,7 +447,7 @@ def quaternion_to_euler(q: Quaternion):
     yaw   = math.atan2(2 * (wz + xy), ww + xx - yy - zz)
     return roll, pitch, yaw
 
-def dcm_to_euler(R: np.ndarray):
+def dcm_to_euler(R: np.ndarray) -> tuple[float, float, float]:
 
     roll  = math.atan2(R[2, 1], R[2, 2])
     pitch = math.asin(-R[2, 0])
@@ -444,5 +455,5 @@ def dcm_to_euler(R: np.ndarray):
     return roll, pitch, yaw
 
 
-def euler_to_dcm(roll: float, pitch: float, yaw: float): # Function not needed! The rotation_matrix_from_roll_pitch_yaw_sequence from orbit library instead
+def euler_to_dcm(roll: float, pitch: float, yaw: float) -> np.ndarray: # Function not needed! The rotation_matrix_from_roll_pitch_yaw_sequence from orbit library instead
     return ol.rotation_matrix_from_roll_pitch_yaw_sequence(roll, pitch, yaw)
