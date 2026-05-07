@@ -1,4 +1,3 @@
-import datetime as dt
 from typing import Callable
 
 import math
@@ -121,12 +120,12 @@ class Quaternion:
         return v[1:]
 
 def read_TLE_file(file_name,satellite_name=''):
-  def validate_entry(Name,line1,line2):
-    if not Name[0].isalpha():
+  def validate_entry(Name_,line1_,line2_):
+    if not Name_[0].isalpha():
       return False
-    if not line1[0].startswith("1") or not len(line1) == 9:
+    if not line1_[0].startswith("1") or not len(line1_) == 9:
       return False
-    if not line2[0].startswith("2") or not len(line2) == 8:
+    if not line2_[0].startswith("2") or not len(line2_) == 8:
       return False
     return True
 
@@ -179,7 +178,7 @@ def rotscaleloc_to_vispy(pos=None,quat=None,Rot=None,Eul=None,scale=None):
         H = Mat4(q.conjugate().get_matrix())
     elif Rot is not None:
         p = np.array([[0,0,0]]).T
-        HT = np.vstack(((np.hstack((Rot,p)),np.array([[0,0,0,1]]))))
+        HT = np.vstack((np.hstack((Rot, p)), np.array([[0, 0, 0, 1]])))
         H = Mat4(HT.T)
     elif Eul is not None:
         q = Quat.create_from_euler_angles(Eul[2],Eul[1],Eul[0])
@@ -367,7 +366,6 @@ def quaternion_to_dcm(q: Quaternion) -> np.ndarray:
 def axis_angle_to_dcm(u: np.ndarray, theta: float) -> np.ndarray:
     """
     Converts axis-angle representation to a 3x3 rotation matrix (DCM).
-
     :param u: Unit vector representing the rotation axis
     :param theta: Rotation angle [rad]
     :return: 3x3 rotation matrix
@@ -389,9 +387,9 @@ def axis_angle_to_dcm(u: np.ndarray, theta: float) -> np.ndarray:
 
 def dcm_to_quaternion(R: np.ndarray) -> Quaternion: # Shepperd’s algorithm
     """
-
-    :param R:
-    :return:
+    Converts a 3x3 rotation matrix (DCM) to a unit quaternion using Shepperd's algorithm.
+    :param R: 3x3 rotation matrix
+    :return: Unit quaternion representing the rotation
     """
     q = np.zeros(4)
     trR = np.linalg.trace(R)
@@ -418,7 +416,7 @@ def dcm_to_quaternion(R: np.ndarray) -> Quaternion: # Shepperd’s algorithm
 
 def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Quaternion: # Function not needed! The quaternion_from_roll_pitch_yaw_sequence from orbit library instead
     """
-    Return the quaternion for a roll-pitch-yaw (RPY) sequence.
+    Converts roll-pitch-yaw (RPY) sequence to quaternion representation.
 
     Rotations are applied in the following order:
     - Roll  (rotation about x-axis)
@@ -433,7 +431,14 @@ def euler_to_quaternion(roll: float, pitch: float, yaw: float) -> Quaternion: # 
     return ol.quaternion_from_roll_pitch_yaw_sequence(roll, pitch, yaw)
 
 def quaternion_to_euler(q: Quaternion) -> tuple[float, float, float]:
-
+    """
+    Converts a quaternion representation to a roll-pitch-yaw (RPY) sequence.
+    :param q: Unit quaternion representing the rotation
+    :return: Tuple containing Euler angles:
+             - Roll angle [radians]
+             - Pitch angle [radians]
+             - Yaw angle [radians]
+    """
     # Unpack variables
     w, x, y, z = q
 
@@ -448,7 +453,14 @@ def quaternion_to_euler(q: Quaternion) -> tuple[float, float, float]:
     return roll, pitch, yaw
 
 def dcm_to_euler(R: np.ndarray) -> tuple[float, float, float]:
-
+    """
+    Converts a 3x3 rotation matrix (DCM) to a roll-pitch-yaw (RPY) sequence.
+    :param R: 3x3 rotation matrix
+    :return: Tuple containing Euler angles:
+             - Roll angle [radians]
+             - Pitch angle [radians]
+             - Yaw angle [radians]
+    """
     roll  = math.atan2(R[2, 1], R[2, 2])
     pitch = math.asin(-R[2, 0])
     yaw   = math.atan2(R[1, 0], R[0, 0])
@@ -456,4 +468,11 @@ def dcm_to_euler(R: np.ndarray) -> tuple[float, float, float]:
 
 
 def euler_to_dcm(roll: float, pitch: float, yaw: float) -> np.ndarray: # Function not needed! The rotation_matrix_from_roll_pitch_yaw_sequence from orbit library instead
+    """
+    Converts a roll-pitch-yaw (RPY) sequence to a 3x3 rotation matrix (DCM).
+    :param roll: Roll angle [radians]
+    :param pitch: Pitch angle [radians]
+    :param yaw: Yaw angle [radians]
+    :return: 3x3 rotation matrix
+    """
     return ol.rotation_matrix_from_roll_pitch_yaw_sequence(roll, pitch, yaw)

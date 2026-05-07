@@ -442,39 +442,6 @@ def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray, u: float=mu) -> tupl
 
     return h, e, theta, omega, i, w
 
-# Algorithm 5
-def orbit_propagation(ri, vi):
-    h, e, theta, omega, i, w = orbit_params_from_state(ri, vi)
-
-    # TODO: Unsure about step 2 in algorithm 5
-    # Get mean anomaly
-    Me = mean_anomaly_from_eccentric_anomaly(eccentric_anomaly_from_true_anomaly(theta, e), e)
-
-    # Mean motion
-    a = h ** 2 / (mu * (1 - e ** 2))
-    T = orbital_period_from_semi_major_axis(a)
-    n = 2 * math.pi / T
-
-    # Test
-    pos_plot = np.concatenate(([0], ri))  # Initialize the plot data
-
-    # Some for loop??? Propagation loop
-    dt = 1
-    for t in range(0, int(T), dt):
-        Me = angle_wrap_radians(Me + n * dt)
-        # Is the eccentric anomaly wanted full iteration or just 1?
-        E = eccentric_anomaly_from_mean_anomaly(Me, e)
-        # Safe to overwrite theta due to its values already being calculated
-        theta = true_anomaly_from_eccentric_anomaly(E, e)
-
-        # Get the new ri, vi
-        ri, vi = state_from_orbit_params(h, e, theta, omega, i, w)
-        pos_plot = np.vstack((pos_plot, np.concatenate(([t], ri))))
-
-    file = su.log_pos("assignment2_position", pos_plot)
-    pos_plot = None  # Clear the data after its saved
-    pl.line_plot(file)
-
 
 # Algorithm 6
 def epoch_to_julian_date(epoch: str) -> float:
@@ -616,3 +583,7 @@ def get_orbit_periapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
     e = np.linalg.norm(get_orbit_eccentricity_vector(ri, vi, u)) if e is None else e
 
     return np.linalg.norm(np.cross(ri, vi)).astype(float) ** 2 / (u * (1 + e))
+
+###################################
+# Assignment 5 | Algorithms       #
+###################################
