@@ -584,6 +584,43 @@ def get_orbit_periapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
 
     return np.linalg.norm(np.cross(ri, vi)).astype(float) ** 2 / (u * (1 + e))
 
+
 ###################################
 # Assignment 5 | Algorithms       #
 ###################################
+
+def orbit_frame_from_state(ri, vi):
+    pass
+
+class OrbitClassic:
+    def __init__(self, h, e, theta, omega, i, w):
+        pass
+
+    def propagate(self, dt):
+        pass
+
+    def get_params(self):
+        pass
+
+    def get_state(self):
+        pass
+
+    def get_orbit_frame(self):
+        pass
+
+
+class OrbitTLE:
+    def __init__(self, n, e, Me, omega, i, w):
+        pass
+
+    def propagate(self, dt):
+        pass
+
+    def get_params(self):
+        pass
+
+    def get_state(self):
+        pass
+
+    def get_orbit_frame(self):
+        pass

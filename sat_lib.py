@@ -84,16 +84,20 @@ class Satellite:
         # Desired state
         self.qd = qd.normalized()
         self.wd = wd
+        print(qd, wd)
 
     def update(self, t, dt) -> None:
         q = self.body.q
         w = self.body.w
 
         q_db = self.qd.conjugated() @ q
+        if q_db[0] < 0:
+            q_db *= -1
+
         w_db = w - q_db.conjugated().rotate(self.wd)
 
-        tau = -self.k1 * q[1:] - self.k2 * w_db
-
+        tau = -self.k1 * q_db[1:] - self.k2 * w_db
+        print(q)
         self.body.update(t, dt, tau)
 
     def get_state(self) -> tuple[np.ndarray, su.Quaternion]:
