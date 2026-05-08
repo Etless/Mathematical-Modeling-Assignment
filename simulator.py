@@ -2,8 +2,6 @@ from vispy import app, scene
 from vispy.scene.visuals import Mesh
 
 from vispy.scene import MatrixTransform as Mat4
-from vispy.scene import STTransform as STT 
-from vispy.util.quaternion import Quaternion as Quat
 from vispy.io import imread, read_mesh
 from vispy.visuals.filters import TextureFilter
 import numpy as np
@@ -13,8 +11,7 @@ import queue
 import time
 
 import simutils as su
-import orbit_lib as ol 
-import sat_lib as sl
+import orbit_lib as ol
 
 class SimCanvas(scene.SceneCanvas):
     def __init__(self,anim_queue,anim_dt,anim_close,scale_factor,scene_conf=None):

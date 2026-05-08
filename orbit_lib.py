@@ -3,7 +3,6 @@ import simutils as su
 
 import numpy as np
 
-import plotter as pl
 from astropy.time import Time # Used for custom code
 
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
@@ -97,19 +96,20 @@ def orbital_period_from_revs_per_day(x: float) -> float:
 
 # TLE functions
 def orbit_params_from_tle_params(tle: str, debug: bool=False) -> list[str]:
+    # noinspection SpellCheckingInspection
     """
-    Extracts orbital parameters from TLE text.
-    :param tle: TLE text
-    :param debug: If debug output should be written (default: False)
-    :return: List of orbital parameters:
-             - epoch (YYDDD.DDDDDDDD)
-             - inclination [degrees]
-             - RAAN [degrees]
-             - eccentricity
-             - argument of perigee [degrees]
-             - mean anomaly [degrees]
-             - revolutions per day
-    """
+        Extracts orbital parameters from TLE text.
+        :param tle: TLE text
+        :param debug: If debug output should be written (default: False)
+        :return: List of orbital parameters:
+                 - epoch (YYDDD.DDDDDDDD)
+                 - inclination [degrees]
+                 - RAAN [degrees]
+                 - eccentricity
+                 - argument of perigee [degrees]
+                 - mean anomaly [degrees]
+                 - revolutions per day
+        """
     # Split text into TLE rows
     rows = tle.splitlines()
     if debug: print(f"TLE Name: '{rows[0]}' Data:\n{rows[1]}\n{rows[2]}")

@@ -47,6 +47,7 @@ class RigidBody:
 
         self.q.normalize() # Normalize values in class
 
+    # noinspection PyUnusedLocal
     def f(self, t: float, x: np.ndarray, tau: np.ndarray | None = None)  -> np.ndarray:
         """
         Compute the time derivative of the state vector.

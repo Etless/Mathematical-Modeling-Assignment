@@ -133,6 +133,7 @@ def read_TLE_file(file_name,satellite_name=''):
   with open(file_name) as f:
     file_contents = f.readlines()
   if len(file_contents) < 3:
+    # noinspection SpellCheckingInspection
     print(
           "Error reading file\n"
           "Required format is:\n"
@@ -162,6 +163,8 @@ def read_TLE_file(file_name,satellite_name=''):
         break
   return tle_data
 
+
+# noinspection SpellCheckingInspection
 def read_obj(fname):
     verts = []
     vcols = []
@@ -218,6 +221,7 @@ def log_pos(name,pos,path='data/'):
 ###################################
 
 # f(t, x)
+# noinspection PyUnusedLocal
 def two_body(t: float, x: np.ndarray, ae: np.ndarray=None,u: float=ol.mu) -> np.ndarray:
     """
     Compute the time derivative of the state vector for the classical two-body problem.
