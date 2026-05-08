@@ -6,8 +6,6 @@ import numpy as np
 import plotter as pl
 from astropy.time import Time # Used for custom code
 
-from simutils import dcm_to_quaternion
-
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
 R_E = 6378.1363  # Radius of earth [km]
 w_E = 7.292115e-5 # Angular speed of earth [rad/s]
@@ -600,7 +598,7 @@ def orbit_frame_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[su.Quaternio
     t_unit = np.cross(h_unit, r_unit)
 
     R_io = np.column_stack((r_unit, t_unit, h_unit))
-    q_io = dcm_to_quaternion(R_io)
+    q_io = su.dcm_to_quaternion(R_io)
     w_io = h / np.linalg.norm(ri) ** 2
 
     return q_io, w_io, w_io
