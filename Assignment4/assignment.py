@@ -18,6 +18,8 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.q_E = None
         self.tau = None
 
+        self.ang_vel_plot = None
+
     def init(self, t):
         self.ri = np.zeros(3)
         """q0 = su.Quaternion([1, 0, 0, 0])
@@ -44,12 +46,16 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         self.q_E = su.Quaternion()
 
+        # Data logging variables
+        self.ang_vel_plot = np.concatenate(([t], w0))  # Initialize the plot data
+
 
     def update(self, t, dt):
         #self.body.update(t, dt, self.tau)
         #self.q = self.body.q
 
         self.sat.update(t, dt)
+        self.ang_vel_plot = np.vstack((self.ang_vel_plot, np.concatenate(([t], self.sat.body.w))))
 
 
     def get(self):
@@ -63,7 +69,9 @@ class ScenarioAssignment1(sim.BaseScenario):
 
 
     def post_process(self, t, dt):
-        pass
+        file = su.log_pos("assignment4_ang_vel", self.ang_vel_plot)
+        self.ang_vel_plot = None  # Clear the data after its saved
+        pl.line_plot(file)
 
 
 def main():
