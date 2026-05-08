@@ -133,7 +133,14 @@ def read_TLE_file(file_name,satellite_name=''):
   with open(file_name) as f:
     file_contents = f.readlines()
   if len(file_contents) < 3:
-    print("Error reading file\nRequired format is:\nAAAAAAAAAAAAAAAAAAAAAAAA\n1 NNNNNU NNNNNAAA NNNNN.NNNNNNNN +.NNNNNNNN +NNNNN-N +NNNNN-N N NNNNN\n2 NNNNN NNN.NNNN NNN.NNNN NNNNNNN NNN.NNNN NNN.NNNN NN.NNNNNNNNNNNNNN\nfor each entry")
+    print(
+          "Error reading file\n"
+          "Required format is:\n"
+          "AAAAAAAAAAAAAAAAAAAAAAAA\n"
+          "1 NNNNNU NNNNNAAA NNNNN.NNNNNNNN +.NNNNNNNN +NNNNN-N +NNNNN-N N NNNNN\n"
+          "2 NNNNN NNN.NNNN NNN.NNNN NNNNNNN NNN.NNNN NNN.NNNN NN.NNNNNNNNNNNNNN\n"
+          "for each entry"
+          )
     return tle_data
 
   for i in range(0,len(file_contents),3):
