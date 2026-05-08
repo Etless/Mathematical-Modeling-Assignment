@@ -1,9 +1,7 @@
 import numpy as np
 import simutils as su
-import orbit_lib as ol
 import sat_lib as sl
 import simulator as sim
-import math
 
 import plotter as pl
 
