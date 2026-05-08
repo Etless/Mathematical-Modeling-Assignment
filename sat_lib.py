@@ -57,7 +57,7 @@ class RigidBody:
         :param t: Time [s]
         :param x: State vector containing quaternion and angular velocity
         :param tau: Torque vector acting on body [N*m]
-        :return: State vector with the time derivative of x [rad/s | rad/s**2]
+        :return: Time derivative of the state vector
         """
         if tau is None: # If torque is not applied
             tau = np.zeros(3)
@@ -66,14 +66,24 @@ class RigidBody:
         q_temp = x[:4]
         w_temp = x[4:]
 
-        dq = 0.5 * su.Quaternion(q_temp) @ su.Quaternion(w_temp)
+        dq = 0.5 * (su.Quaternion(q_temp) @ su.Quaternion(w_temp))
         dw = self.J_inv @ (tau - np.cross(w_temp, self.J @ w_temp))
 
         return np.concatenate((dq, dw))
 
 
 class Satellite:
-    def __init__(self, q0: su.Quaternion, w0: np.ndarray, J: np.ndarray, qd: su.Quaternion, wd: np.ndarray, k1: float = 2.0, k2: float = 1.0) -> None:
+    def __init__(self, q0: su.Quaternion, w0: np.ndarray, J: np.ndarray, qd: su.Quaternion, wd: np.ndarray, k1: float = 0.5, k2: float = 1.0) -> None:
+        """
+        Satellite attitude simulation using rigid-body rotational dynamics and quaternion PD control.
+        :param q0: Initial quaternion
+        :param w0: Initial angular velocity [rad/s]
+        :param J:  3x3 Inertia matrix
+        :param qd: Desired quaternion
+        :param wd: Desired angular velocity [rad/s]
+        :param k1: Proportional gain (default: 0.5)
+        :param k2: Derivative gain (default: 1.0)
+        """
         self.body = RigidBody(q0, w0, J)
         self.ri = np.zeros(3)
 
@@ -84,23 +94,60 @@ class Satellite:
         # Desired state
         self.qd = qd.normalized()
         self.wd = wd
-        print(qd, wd)
 
-    def update(self, t, dt) -> None:
+    def update(self, t: float, dt: float) -> None:
+        """
+        Update the state of the satellite.
+        :param t: Time [s]
+        :param dt: Time step [s]
+        """
+        # Update desired quaternion with the desired angular velocity
+        self.qd = (self.qd +
+                   dt * (0.5 * self.qd @ su.Quaternion(self.wd))
+                   ).normalized()
+
+        # Get quaternion and angular velocity from rigid body
         q = self.body.q
         w = self.body.w
 
+        # Quaternion error (desired -> body)
         q_db = self.qd.conjugated() @ q
-        if q_db[0] < 0:
+        if q_db[0] < 0: # Shortest way/direction to rotate
             q_db *= -1
 
+        # Angular velocity error (desired -> body)
         w_db = w - q_db.conjugated().rotate(self.wd)
 
+        # Simple PD controller for torque
         tau = -self.k1 * q_db[1:] - self.k2 * w_db
-        print(q)
+
         self.body.update(t, dt, tau)
 
     def get_state(self) -> tuple[np.ndarray, su.Quaternion]:
+        """
+        Get the state of the satellite.
+        :return: Tuple containing satellite state:
+                 - Position vector in ECI frame [km]
+                 - Unit quaternion representing the rotation
+        """
         return self.ri, self.body.q
 
+
+###################################
+# Assignment 5 | Algorithms       #
+###################################
+
+class ADCS_PD:
+    def __init__(self, k1, k2, f, J):
+        self.k1 = k1
+        self.k2 = k2
+        self.f = f
+        self.J = J
+        self.tau = np.zeros(3)
+
+    def update(self, q_ib, w_bib, q_io, w_iio):
+        pass
+
+    def get_control(self):
+        return self.tau
 
