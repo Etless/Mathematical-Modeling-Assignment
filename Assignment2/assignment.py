@@ -76,7 +76,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.Me = ol.angle_wrap_radians(self.Me + self.n * dt)
 
         # Conversion madness! Mean anomaly [Me] -> Eccentric anomaly [E] -> True anomaly [theta]
-        theta = ol.true_anomaly_from_eccentric_anomaly(ol.eccentric_anomaly_from_mean_anomaly(self.Me, self.e), self.e)
+        theta = ol.true_anomaly_from_mean_anomaly(self.Me, self.e)
 
         # Get the new ri, vi from updated theta
         self.ri, vi = ol.state_from_orbit_params(self.h, self.e, theta, self.omega, self.i, self.w)
