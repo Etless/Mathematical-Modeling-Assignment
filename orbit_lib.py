@@ -103,43 +103,41 @@ def orbital_period_from_revs_per_day(x: float) -> float:
     return 24 * 3600 / x
 
 # TLE functions
-def orbit_params_from_tle_params(tle: str, debug: bool=False) -> list[str]:
+def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str, float, float, float, float, float, float]:
     # noinspection SpellCheckingInspection
     """
-        Extracts orbital parameters from TLE text.
-        :param tle: TLE text
-        :param debug: If debug output should be written (default: False)
-        :return: List of orbital parameters:
-                 - epoch (YYDDD.DDDDDDDD)
-                 - inclination [degrees]
-                 - RAAN [degrees]
-                 - eccentricity
-                 - argument of perigee [degrees]
-                 - mean anomaly [degrees]
-                 - revolutions per day
-        """
-    # Split text into TLE rows
-    rows = tle.splitlines()
-    if debug: print(f"TLE Name: '{rows[0]}' Data:\n{rows[1]}\n{rows[2]}")
+    Extracts orbital parameters from TLE file.
+    :param tle_path: TLE file path
+    :param debug: If debug output should be written (default: False)
+    :return: Tuple of orbital parameters extracted from TLE:
+             - epoch (YYDDD.DDDDDDDD) [str]
+             - eccentricity
+             - revolutions per day
+             - mean anomaly [radians]
+             - RAAN [radians]
+             - inclination [radians]
+             - argument of perigee [radians]
+    """
+    # Use given function to read TLE file.
+    # Function has the ability to read multiple TLE satellites
+    # from a single file
+    tle_data = su.read_TLE_file(tle_path) # Returns (Name, epoch, e, rev, Me, i, omega, w)
+    if tle_data is None or len(tle_data) == 0:
+        raise ValueError("No valid TLE data found in file")
 
-    # Get all necessary fields as arguments
-    args = [""] * 7
-    fields = (" ".join(rows[1].split())).split(' ')  # Fields in row 1
-    args[0] = fields[3]  # Epoch                           [int|int|float]
+    # Only care about the first satellite
+    tle_data = tle_data[0]
+    if debug: print(f"TLE Name: '{tle_data[0]}' Data:{tle_data[1:]}")
 
-    fields = (" ".join(rows[2].split())).split(' ')  # Fields in row 2
-    args[1] = fields[2]  # Inclination                     [float] [degrees]
-    args[2] = fields[3]  # RAAN                            [float] [degrees]
-    args[3] = fields[4]  # Eccentricity                    [float]
-    args[4] = fields[5]  # Argument of perigee             [float] [degrees]
-    args[5] = fields[6]  # Mean anomaly                    [float] [degrees]
-    args[6] = fields[7]  # Revs per day | Revs | Checksum  [float|int|int]
+    epoch = tle_data[1]          # Epoch                [int|int|float]
+    e     = tle_data[2]          # Eccentricity         [float]
+    rev   = tle_data[3]          # Revs per day         [float|int|int]
+    Me    = deg2rad(tle_data[4]) # Mean anomaly         [float] [degrees] -> [radians]
+    omega = deg2rad(tle_data[6]) # RAAN                 [float] [degrees] -> [radians]
+    i     = deg2rad(tle_data[5]) # Inclination          [float] [degrees] -> [radians]
+    w     = deg2rad(tle_data[7]) # Argument of perigee  [float] [degrees] -> [radians]
 
-    print(f"'{rows[1][2:7].strip()}'")
-    print(f"'{rows[1][14:16].strip()}'")
-
-    return args
-
+    return epoch, e, rev, Me, omega, i, w
 def tle_params_from_orbit_params():
     pass
 
@@ -186,11 +184,11 @@ def rotation_matrix_from_classical_euler_sequence(omega: float, i: float, w: flo
     Rotations are applied in the following order:
     - Omega [RAAN] (around z-axis)
     - i     [Inclination] (around x-axis)
-    - w     [Argument of perihelion] (around z-axis)
+    - w     [Argument of periapsis] (around z-axis)
 
     :param omega: Right Ascension of the Ascending Node (RAAN) [radians]
     :param i: Inclination [radians]
-    :param w: Argument of perihelion [radians]
+    :param w: Argument of periapsis [radians]
     :return: 3x3 rotation matrix
     """
     return _matrix_r3(omega) @ _matrix_r1(i) @ _matrix_r3(w)
@@ -241,11 +239,11 @@ def quaternion_from_classical_euler_sequence(omega: float, i: float, w: float) -
     Rotations are applied in the following order:
     - Omega [RAAN] (around z-axis)
     - i     [Inclination] (around x-axis)
-    - w     [Argument of perihelion] (around z-axis)
+    - w     [Argument of periapsis] (around z-axis)
 
     :param omega: Right Ascension of the Ascending Node (RAAN) [radians]
     :param i: Inclination [radians]
-    :param w: Argument of perihelion [radians]
+    :param w: Argument of periapsis [radians]
     :return: Quaternion representing the rotation
     """
     return _quaternion_q3(omega) @ _quaternion_q1(i) @ _quaternion_q3(w)
@@ -338,6 +336,7 @@ def sidereal_angle(JD: float) -> float:
     theta_G  = theta_G0 + w_E * (24 * 3600 * ((JD + 0.5) % 1.0))
     return angle_wrap_radians(theta_G)
 
+
 # Algorithm 2
 def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: float, w: float, u: float=mu) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -349,7 +348,7 @@ def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: f
     :param theta: True anomaly [radians]
     :param omega: Right Ascension of Ascending Node (RAAN) [radians]
     :param i: Inclination [radians]
-    :param w: Argument of perihelion [radians]
+    :param w: Argument of periapsis [radians]
     :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
     :return: Tuple of two np.ndarray elements:
              - Position vector in ECI frame [km]
@@ -362,36 +361,36 @@ def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: f
     R = rotation_matrix_from_classical_euler_sequence(omega, i, w)
     return R @ rp, R @ vp
 
+
 # Algorithm 3
-# All arguments from row 2 of tle (Note: given as string!)
-# [0]Inclination | [1]RAAN | [2]Eccentricity | [3]Argument of perigee | [4]Mean anomaly | [5](Revs per day | Revs | Checksum)
-def state_from_tle_params(args):
-    # Get satellite position and velocity in ECI frame from TLE parameters
+def state_from_tle_params(e: float, n: float, Me: float, omega: float, i: float, w: float, u: float=mu) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Computes the satellite's position and velocity vectors in Earth-Centered Inertial (ECI) frame
+    from TLE parameters.
 
-    # NN.NNNNNNNN | NNNNN | N [Revs per day | Revs | Checksum]
-    T = orbital_period_from_revs_per_day(float(args[5][:11]))
+    Units are expected in radians and not degrees.
 
-    a = (math.sqrt(mu)*T/(2*math.pi)) ** (2/3) # Semi-major axis
+    :param e: Eccentricity
+    :param n: Mean motion [rad/s]
+    :param Me: Mean anomaly [radians]
+    :param omega: Right Ascension of Ascending Node (RAAN) [radians]
+    :param i: Inclination [radians]
+    :param w: Argument of periapsis [radians]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Tuple of two np.ndarray elements:
+             - Position vector in ECI frame [km]
+             - Velocity vector in ECI frame [km/s]
+    """
+    # Updated for assignement 5. Originaly used revs per day
+    # to calculate the orbital period, but I  was adviced to
+    # use n (n = 2 * pi / T) instead.
+    a = (u/n**2) ** (1/3) # Semi-major axis
+    h = math.sqrt(a * u * (1 - e ** 2))
 
-    # 0.NNNNNNN [Eccentricity]
-    e = float(f"0.{args[2]}")
+    theta = true_anomaly_from_mean_anomaly(Me, e)
 
-    h = math.sqrt(a * mu * (1 - e ** 2))
-
-    # float [Mean anomaly]
-    Me = deg2rad(float(args[4]))
-    # Convert mean anomaly to true anomaly
-    E = eccentric_anomaly_from_mean_anomaly(Me, e)
-    theta = true_anomaly_from_eccentric_anomaly(E, e)
-
-    # TODO: Notes
-    i     = deg2rad(float(args[0]))
-    omega = deg2rad(float(args[1]))
-    w     = deg2rad(float(args[3]))
-
-    # Get satellite position and velocity
-    ri, vi = state_from_orbit_params(h, e, theta, omega, i, w)
-    return ri, vi
+    # Return position and velocity vectors
+    return state_from_orbit_params(h, e, theta, omega, i, w)
 
 
 # Algorithm 4
@@ -407,7 +406,7 @@ def orbit_params_from_state(ri: np.ndarray, vi: np.ndarray, u: float=mu) -> tupl
              - True anomaly [radians]
              - Right Ascension of Ascending Node (RAAN) [radians]
              - Inclination [radians]
-             - Argument of perihelion [radians]
+             - Argument of periapsis [radians]
     """
     # Normalize position and velocity vectors
     r  = np.linalg.norm(ri)
@@ -523,7 +522,6 @@ def get_orbit_energy_state(x: np.ndarray, m: float, u: float=mu) -> float:
     :return: Total orbital energy [MJ]
     """
     return get_orbit_energy(x[:3], x[3:], m, u)
-
 def get_orbit_energy(ri: np.ndarray, vi: np.ndarray, m: float, u: float=mu) -> float:
     """
     Calculates the total mechanical energy of a satellite in orbit from position and velocity vectors.
@@ -546,7 +544,6 @@ def get_orbit_eccentricity_vector_state(x: np.ndarray, u: float=mu) -> np.ndarra
     :return: Eccentricity vector
     """
     return get_orbit_eccentricity_vector(x[:3], x[3:], u)
-
 def get_orbit_eccentricity_vector(ri: np.ndarray, vi: np.ndarray, u: float = mu) -> np.ndarray:
     """
     Compute the orbital eccentricity vector from position and velocity vectors.
@@ -575,7 +572,6 @@ def get_orbit_apoapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
     e = np.linalg.norm(get_orbit_eccentricity_vector(ri, vi, u)) if e is None else e
 
     return np.linalg.norm(np.cross(ri, vi)).astype(float) ** 2 / (u * (1 - e))
-
 def get_orbit_periapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
     """
     Compute the periapsis distance of an orbit from a full state vector.

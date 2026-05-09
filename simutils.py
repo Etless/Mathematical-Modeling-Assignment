@@ -119,7 +119,7 @@ class Quaternion:
         v = self@Quaternion(u)@self.conjugated()
         return v[1:]
 
-def read_TLE_file(file_name,satellite_name=''):
+def read_TLE_file(file_name: str,satellite_name: str=''):
   def validate_entry(Name_,line1_,line2_):
     if not Name_[0].isalpha():
       return False
@@ -150,7 +150,7 @@ def read_TLE_file(file_name,satellite_name=''):
       line1 = file_contents[i+1].strip().split()
       line2 = file_contents[i+2].strip().split()
       if validate_entry(Name,line1,line2):
-        epoch = float(line1[3])
+        epoch = line1[3] #float(line1[3])
         e = float("0."+line2[4])
         rev = float(line2[7])
         Me = float(line2[6])

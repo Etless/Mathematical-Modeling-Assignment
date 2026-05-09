@@ -11,10 +11,13 @@ from orbit_lib import ground_track
 
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
-    def __init__(self, args: list[str]):
+    def __init__(self, file_path: str):
+
+        # Load TLE file and get all elements assigned to it
+        epoch, self.e, rev, self.Me, self.omega, self.i, self.w = ol.orbit_params_from_tle_params(file_path, debug=True)
 
         ### Convert arguments to values ###
-        JD = ol.epoch_to_julian_date(args[0])
+        JD = ol.epoch_to_julian_date(epoch)
         self.theta_G0 = ol.sidereal_angle(JD)
 
         # Julian Date information
@@ -24,44 +27,26 @@ class ScenarioAssignment1(sim.BaseScenario):
         print(ol.julian_date_to_iso(JD))
 
         # Orbit params
-        self.ri0, self.vi0 = ol.state_from_tle_params(args[1:])
+        self.T = ol.orbital_period_from_revs_per_day(rev)
+        self.n = 2 * math.pi / self.T
 
         self.theta_E = None
         self.q_E = None
         self.ri = None
         self.q = None
-        self.n = None
-        self.Me = None
-        self.w = None
-        self.i = None
-        self.omega = None
-        self.e = None
-        self.h = None
         self.pos_plot = None
         self.ground_track_plot = None
 
 
     def init(self, t):
 
-        # Retrieve orbit parameters from initial ri and vi
-        self.h, self.e, theta, self.omega, self.i, self.w = ol.orbit_params_from_state(self.ri0, self.vi0)
-
-        # Conversion madness! True anomaly [theta] -> Eccentric anomaly [E] -> Mean anomaly [Me]
-        self.Me = ol.mean_anomaly_from_true_anomaly(theta, self.e)
-
-        # Mean motion
-        a = self.h ** 2 / (ol.mu * (1 - self.e ** 2))
-        T = ol.orbital_period_from_semi_major_axis(a)
-        self.n = 2 * math.pi / T
-
         self.q = su.Quaternion() # Satellite rotation
-        self.ri = self.ri0  # Satellite position
+        self.ri, _ = ol.state_from_tle_params(self.e, self.n, self.Me, self.omega, self.i, self.w)  # Satellite position
 
         # Earth rotation variables
         self.theta_E = self.theta_G0 # Offset to the rotation
         temp = ol.polar2xyz(1, self.theta_E / 2) # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
-        #self.q_E = su.Quaternion()
 
         # Data logging variables
         self.pos_plot = np.concatenate(([t], self.ri)) # Initialize the plot data
@@ -75,11 +60,8 @@ class ScenarioAssignment1(sim.BaseScenario):
         # Propagate mean anomaly to it's next value in regard to time step
         self.Me = ol.angle_wrap_radians(self.Me + self.n * dt)
 
-        # Conversion madness! Mean anomaly [Me] -> Eccentric anomaly [E] -> True anomaly [theta]
-        theta = ol.true_anomaly_from_mean_anomaly(self.Me, self.e)
-
         # Get the new ri, vi from updated theta
-        self.ri, vi = ol.state_from_orbit_params(self.h, self.e, theta, self.omega, self.i, self.w)
+        self.ri, vi = ol.state_from_tle_params(self.e, self.n, self.Me, self.omega, self.i, self.w)
 
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
@@ -114,30 +96,14 @@ class ScenarioAssignment1(sim.BaseScenario):
 
 
 def main():
-  #scenario = sim.BaseScenario()
-  #scenario = ScenarioAssignment1()
-  #sim.create_and_start_simulation(sim_config,scenario)
-
   # Read the TLE file
   file_path = "Assignment2/VANGUARD_1_TLE.txt"
   #file_path = "Assignment2/SAT_40613_TLE.txt"
   #file_path = "Assignment2/MOLNIYA_1_91_TLE.txt"
 
-  try:
-      with open(file_path, "r") as f:
-          tle_text = f.read()
+  scenario = ScenarioAssignment1(file_path)
 
-  except FileNotFoundError:
-    print(f"Error: The file '{file_path}' was not found.")
-    return
-
-  # Get all necessary fields as arguments
-  args = ol.orbit_params_from_tle_params(tle_text, debug=True)
-
-  T = ol.orbital_period_from_revs_per_day(float(args[1:][5][:11]))
-
-  sim_config = {'t_0': 0, 't_e': T, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
-  scenario = ScenarioAssignment1(args)
+  sim_config = {'t_0': 0, 't_e': scenario.T, 't_step': 1, 'speed_factor': 2000, 'anim_dt': 0.04, 'scale_factor': 2000, 'visualise': True}
   sim.create_and_start_simulation(sim_config,scenario)
 
 
