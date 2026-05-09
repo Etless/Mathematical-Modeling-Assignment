@@ -41,6 +41,14 @@ def true_anomaly_from_eccentric_anomaly(E: float, e: float) -> float:
     return 2 * math.atan(
         math.sqrt((1+e)/(1-e)) * math.tan(E/2)
     )
+def true_anomaly_from_mean_anomaly(Me: float, e: float) -> float:
+    """
+    Converts mean anomaly into true anomaly.
+    :param Me: Mean anomaly [radians]
+    :param e: Eccentricity
+    :return: True anomaly [radians]
+    """
+    return true_anomaly_from_eccentric_anomaly(eccentric_anomaly_from_mean_anomaly(Me, e), e)
 def eccentric_anomaly_from_true_anomaly(theta: float, e: float) -> float:
     """
     Converts true anomaly into eccentric anomaly.
@@ -590,18 +598,41 @@ def get_orbit_periapsis(x: np.ndarray, e: float=None, u: float=mu) -> float:
 ###################################
 
 def orbit_frame_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[su.Quaternion, np.ndarray, np.ndarray]:
-    r_unit = ri / np.linalg.norm(ri)
+    """
+    Calculates orbital frame attitude and kinematics from position and velocity vectors.
+    :param ri: Position vector in ECI frame [km]
+    :param vi: Velocity vector in ECI frame [km/s]
+    :return: Tuple containing orbital frame parameters:
+             - Orbit to inertial quaternion
+             - Angular velocity of orbit frame [rad/s]
+             - Angular velocity of orbit frame [rad/s**2]
+    """
+    # Radial direction (unit)
+    r_norm = np.linalg.norm(ri)
+    r_unit = ri / r_norm
 
-    h = np.cross(ri, vi)
-    h_unit = h / np.linalg.norm(h)
+    # Orbital normal direction (+unit)
+    hi = np.cross(ri, vi)
+    h_unit = hi / np.linalg.norm(hi)
 
+    # Along-track direction (unit)
     t_unit = np.cross(h_unit, r_unit)
 
-    R_io = np.column_stack((r_unit, t_unit, h_unit))
-    q_io = su.dcm_to_quaternion(R_io)
-    w_io = h / np.linalg.norm(ri) ** 2
+    # Rotation matrix DCM
+    R_io = np.column_stack([t_unit, -h_unit, -r_unit])
 
-    return q_io, w_io, w_io
+    # Orbit to inertial quaternion
+    q_io = su.dcm_to_quaternion(R_io)
+
+    # Angular velocity
+    w_iio = - hi / r_norm ** 2
+
+    # Angular acceleration
+    r_dot = np.dot(ri, vi)
+    dw_iio = -2.0 * (r_dot / r_norm ** 2) * w_iio
+
+    return q_io, w_iio, dw_iio
+
 
 class OrbitClassic:
     def __init__(self, h, e, theta, omega, i, w):
@@ -635,13 +666,18 @@ class OrbitTLE:
         self.w = w
 
     def propagate(self, dt):
-        pass
+        # Propagate mean anomaly to it's next value in regard to time step
+        self.Me = angle_wrap_radians(self.Me + self.n * dt)
 
     def get_params(self):
         pass
 
-    def get_state(self):
-        pass
+    def get_state(self) -> tuple[np.ndarray, np.ndarray]:
+        # Conversion madness! Mean anomaly [Me] -> Eccentric anomaly [E] -> True anomaly [theta]
+        theta = true_anomaly_from_mean_anomaly(self.Me, self.e)
+
+        # Get the new ri, vi from updated theta
+        return state_from_orbit_params(self.h, self.e, theta, self.omega, self.i, self.w)
 
     def get_orbit_frame(self):
         pass
