@@ -7,19 +7,31 @@ satellite_distance = ol.R_E + 400 # From earth center [km]
 T = 2 * math.pi * math.sqrt(satellite_distance ** 3 / ol.mu) # Orbital period [s]
 
 ###################################
-# Assignment 4 | Algorithms       #
+# Assignment 5 | Algorithms       #
 ###################################
 
 class RigidBody:
-    def __init__(self, q0: su.Quaternion, w0: np.ndarray, J: np.ndarray) -> None:
+    def __init__(self, r0: np.ndarray, v0: np.ndarray, m: float, q0: su.Quaternion, w0: np.ndarray, J: np.ndarray) -> None:
         """
         Rigid body class used for attitude simulation.
+        :param r0: Initial position vector [km]
+        :param v0: Initial velocity vector [km/s]
+        :param m: The satellites mass [kg]
+        :param q0: Initial quaternion (normalized)
         :param q0: Initial quaternion (normalized)
         :param w0: Initial angular velocity [rad/s]
         :param J: 3x3 Inertia matrix
         """
         if J.shape != (3, 3):
             raise ValueError("J must be a 3x3 matrix")
+
+        #self.ri = r0             # Initial position [array]
+        #self.vi = v0             # Initial velocity [array]
+        self.force = np.zeros(3) # Force acting on body [array]
+
+        self.x = np.concatenate([r0, v0])
+
+        self.m = m               # Mass of body
 
         self.q = q0.normalized() # Initial quaternion [array] (normalized creates new class)
         self.w = w0              # Initial angular velocity [array]
@@ -29,23 +41,33 @@ class RigidBody:
         self.J = J  # Inertia matrix [array]
         self.J_inv = np.linalg.inv(self.J) # Inverse (precalculated)
 
-    def update(self, t: float, dt: float, tau: np.ndarray) -> None:
+    def update(self, t: float, dt: float, force: np.ndarray,tau: np.ndarray) -> None:
         """
         Update the state of the rigid body.
         :param t: Time [s]
         :param dt: Time step [s]
+        :param force: Force vector [N*m]
         :param tau: Torque vector acting on body [N*m]
         """
+        self.force = force
+        ae = force / self.m # External acceleration
+        #self.x = su.step_RK4(dt, t, self.x, su.two_body, ae=ae)
+        self.x = su.step_RK4(dt, t, self.x, su.two_body)
+
         self.tau = tau # Update torque
 
         # Create state vector (needed for step)
         x = np.concatenate((self.q[:], self.w))
-        x = su.step_RK4(dt, t, x, self.f, tau) # Perform step
+        #x = su.step_RK4(dt, t, x, self.f, tau) # Perform step
+        x = su.step_RK4(dt, t, x, self.f)  # Perform step
 
         self.q[:] = x[:4] # Update values in Quaternion class
         self.w    = x[4:] # Update angular velocity
 
         self.q.normalize() # Normalize values in class
+
+    def get_state(self):
+        return self.x[:3], self.x[3:], self.q, self.w
 
     # noinspection PyUnusedLocal
     def f(self, t: float, x: np.ndarray, tau: np.ndarray | None = None)  -> np.ndarray:
@@ -74,27 +96,15 @@ class RigidBody:
 
 
 class Satellite:
-    def __init__(self, q0: su.Quaternion, w0: np.ndarray, J: np.ndarray, qd: su.Quaternion, wd: np.ndarray, k1: float = 0.5, k2: float = 1.0) -> None:
-        """
-        Satellite attitude simulation using rigid-body rotational dynamics and quaternion PD control.
-        :param q0: Initial quaternion
-        :param w0: Initial angular velocity [rad/s]
-        :param J:  3x3 Inertia matrix
-        :param qd: Desired quaternion
-        :param wd: Desired angular velocity [rad/s]
-        :param k1: Proportional gain (default: 0.5)
-        :param k2: Derivative gain (default: 1.0)
-        """
-        self.body = RigidBody(q0, w0, J)
-        self.ri = np.zeros(3)
+    def __init__(self, q_ib, w_bib, J, ri=np.zeros(3), vi=np.zeros(3), m=1, orbit=None, substeps=0) -> None:
+        self.orbit = orbit
 
-        # Coefficients for PD controller
-        self.k1 = k1
-        self.k2 = k2
+        if self.orbit is not None:
+            ri, vi = self.orbit.get_state()
 
-        # Desired state
-        self.qd = qd.normalized()
-        self.wd = wd
+        self.body = RigidBody(ri, vi, m, q_ib, w_bib, J)
+        self.N = substeps + 1
+        self.ADCS = ADCS_PD(1e-5, 2e-4, J)
 
     def update(self, t: float, dt: float) -> None:
         """
@@ -102,36 +112,47 @@ class Satellite:
         :param t: Time [s]
         :param dt: Time step [s]
         """
-        # Update desired quaternion with the desired angular velocity
-        self.qd = (self.qd +
-                   dt * (0.5 * self.qd @ su.Quaternion(self.wd))
-                   ).normalized()
+        if self.orbit:
+            self.update_with_orbit(t, dt)
+        else:
+            self.update_with_dynamics(t, dt)
 
-        # Get quaternion and angular velocity from rigid body
-        q = self.body.q
-        w = self.body.w
+    def get_state(self):
+        return self.body.get_state()
 
-        # Quaternion error (desired -> body)
-        q_db = self.qd.conjugated() @ q
-        if q_db[0] < 0: # Shortest way/direction to rotate
-            q_db *= -1
+    def get_orbit_frame(self):
+        if self.orbit:
+            return self.orbit.get_orbit_frame()
+        else:
+            ri, vi, _, _ = self.body.get_state()
+            return ol.orbit_frame_from_state(ri, vi)
 
-        # Angular velocity error (desired -> body)
-        w_db = w - q_db.conjugated().rotate(self.wd)
+    def update_with_orbit(self, t: float, dt: float) -> None:
+        r0, v0 = self.orbit.get_state()
+        self.orbit.propagate(dt)
+        r1, v1 = self.orbit.get_state()
+        t_sub = dt / self.N
+        for n in range(0, self.N):
+            ri = r0 + n / self.N * (r1 - r0)
+            vi = v0 + n / self.N * (v1 - v0)
+            _, _, q_ib, w_bib = self.get_state()
+            q_io, w_iio, _ = ol.orbit_frame_from_state(ri, vi)
+            self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, np.zeros(3))
+            tau_u = self.ADCS.get_control()
+            self.body.update(t, dt, np.zeros(3), tau_u)
+            t += t_sub
+        self.body.ri, self.body.vi = self.orbit.get_state()
 
-        # Simple PD controller for torque
-        tau = -self.k1 * q_db[1:] - self.k2 * w_db
-
-        self.body.update(t, dt, tau)
-
-    def get_state(self) -> tuple[np.ndarray, su.Quaternion]:
-        """
-        Get the state of the satellite.
-        :return: Tuple containing satellite state:
-                 - Position vector in ECI frame [km]
-                 - Unit quaternion representing the rotation
-        """
-        return self.ri, self.body.q
+    def update_with_dynamics(self, t, dt):
+        t_sub = dt / self.N
+        for n in range(0, self.N):
+            ri, vi, q_ib, w_bib = self.get_state()
+            q_io, w_iio, dw_iio = self.get_orbit_frame()
+            self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, dw_iio)
+            tau_u = self.ADCS.get_control()
+            f = -ol.mu / np.linalg.norm(ri) ** 3 * ri
+            self.body.update(t, t_sub, f, tau_u)
+            t += t_sub
 
 
 ###################################
@@ -139,15 +160,23 @@ class Satellite:
 ###################################
 
 class ADCS_PD:
-    def __init__(self, k1, k2, f, J):
+    def __init__(self, k1, k2, J):
         self.k1 = k1
         self.k2 = k2
-        self.f = f
         self.J = J
         self.tau = np.zeros(3)
 
-    def update(self, q_ib, w_bib, q_io, w_iio):
-        pass
+    def update(self, t, q_ib, w_bib, q_io, w_iio, dw_iio):
+        # Quaternion error (desired -> body)
+        q_db = q_io.conjugated() @ q_ib
+        if q_db[0] < 0:  # Shortest way/direction to rotate
+            q_db *= -1
+
+        # Angular velocity error (desired -> body)
+        w_db = w_bib - q_db.conjugated().rotate(w_iio)
+
+        # Simple PD controller for torque
+        self.tau = -self.k1 * q_db[1:] - self.k2 * w_db
 
     def get_control(self):
         return self.tau

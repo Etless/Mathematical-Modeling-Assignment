@@ -1,6 +1,6 @@
 import numpy as np
 import simutils as su
-import sat_lib as sl
+import sat_lib_assignment4 as sl
 import simulator as sim
 
 import plotter as pl

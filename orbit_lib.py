@@ -1,6 +1,5 @@
 import math
 import simutils as su
-
 import numpy as np
 
 from astropy.time import Time # Used for custom code
@@ -354,7 +353,7 @@ def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: f
              - Position vector in ECI frame [km]
              - Velocity vector in ECI frame [km/s]
     """
-    r = h ** 2 / u / (1 + e * math.cos(theta)) # Get distance of satellite to planet center
+    r = h ** 2 / u / (1 + e * math.cos(theta)) # Get distance of satellite to planet center # TODO: Make its own function
     rp = polar2xyz(r, theta) # Convert to XY
     vp = (u/h) * np.array([-np.sin(theta), e + np.cos(theta), 0])
 
@@ -631,29 +630,51 @@ def orbit_frame_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[su.Quaternio
 
 
 class OrbitClassic:
-    def __init__(self, h, e, theta, omega, i, w):
+    def __init__(self, h: float, e: float, theta: float, omega: float, i: float, w: float, u: float=mu) -> None:
         self.h = h
         self.e = e
         self.theta = theta
         self.omega = omega
         self.i = i
         self.w = w
+        self.u = u
 
-    def propagate(self, dt):
-        pass
+        self._ri = None
+        self._vi = None
 
-    def get_params(self):
-        pass
+        # Shows if state is accurate
+        self._state_valid = False
 
-    def get_state(self):
-        pass
+    def propagate(self, dt: float) -> None:
+        r = self.h ** 2 / (self.u * (1 + self.e * math.cos(self.theta))) # TODO: Make its own function
+        theta_dot = self.h / r ** 2
 
-    def get_orbit_frame(self):
-        pass
+        # Propagate state to its next value in regard to time step
+        self.theta = angle_wrap_radians(self.theta + theta_dot * dt)
+        self._state_valid = False
+
+    def get_params(self) -> tuple[float, float, float, float, float, float]:
+        return self.h, self.e, self.theta, self.omega, self.i, self.w
+
+    def get_state(self) -> tuple[np.ndarray, np.ndarray]:
+        # Get the ri, vi
+        self._ri, self._vi = state_from_orbit_params(self.h, self.e, self.theta, self.omega, self.i, self.w, self.u)
+        self._state_valid = True
+
+        return self._ri, self._vi
+
+    def get_orbit_frame(self) -> tuple[su.Quaternion, np.ndarray, np.ndarray]:
+        # If mean anomaly is propagated and
+        # state vectors have not been
+        # recalculated then calculate them
+        if not self._state_valid:
+            self.get_state()
+
+        return orbit_frame_from_state(self._ri, self._vi)
 
 
 class OrbitTLE:
-    def __init__(self, n, e, Me, omega, i, w):
+    def __init__(self, n: float, e: float, Me: float, omega: float, i: float, w: float) -> None:
         self.n = n
         self.e = e
         self.Me = Me
@@ -661,19 +682,32 @@ class OrbitTLE:
         self.i = i
         self.w = w
 
-    def propagate(self, dt):
-        # Propagate mean anomaly to it's next value in regard to time step
-        self.Me = angle_wrap_radians(self.Me + self.n * dt)
+        self._ri = None
+        self._vi = None
 
-    def get_params(self):
-        pass
+        # Shows if state is accurate
+        self._state_valid = False
+
+    def propagate(self, dt: float) -> None:
+        # Propagate mean anomaly to its next value in regard to time step
+        self.Me = angle_wrap_radians(self.Me + self.n * dt)
+        self._state_valid = False
+
+    def get_params(self) -> tuple[float, float, float, float, float, float]:
+        return self.n, self.e, self.Me, self.omega, self.i, self.w
 
     def get_state(self) -> tuple[np.ndarray, np.ndarray]:
-        # Conversion madness! Mean anomaly [Me] -> Eccentric anomaly [E] -> True anomaly [theta]
-        theta = true_anomaly_from_mean_anomaly(self.Me, self.e)
+        # Get the ri, vi
+        self._ri, self._vi = state_from_tle_params(self.e, self.n, self.Me, self.omega, self.i, self.w)
+        self._state_valid = True
 
-        # Get the new ri, vi from updated theta
-        return state_from_orbit_params(self.h, self.e, theta, self.omega, self.i, self.w)
+        return self._ri, self._vi
 
-    def get_orbit_frame(self):
-        pass
+    def get_orbit_frame(self) -> tuple[su.Quaternion, np.ndarray, np.ndarray]:
+        # If mean anomaly is propagated and
+        # state vectors have not been
+        # recalculated then calculate them
+        if not self._state_valid:
+            self.get_state()
+
+        return orbit_frame_from_state(self._ri, self._vi)
