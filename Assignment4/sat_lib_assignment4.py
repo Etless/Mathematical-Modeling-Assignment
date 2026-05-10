@@ -68,7 +68,7 @@ class RigidBody:
         q_temp = x[:4]
         w_temp = x[4:]
 
-        dq = 0.5 * (su.Quaternion(q_temp) @ su.Quaternion(w_temp))
+        dq = 0.5 * (su.Quaternion(q_temp).normalized() @ su.Quaternion(w_temp)) # Normalize quaternion
         dw = self.J_inv @ (tau - np.cross(w_temp, self.J @ w_temp))
 
         return np.concatenate((dq, dw))

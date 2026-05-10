@@ -74,6 +74,10 @@ class Quaternion:
     
     def __mul__(self,other):
         return Quaternion(self.q*other)
+
+    def __imul__(self, other):
+        self.q *= other
+        return self
             
     def __rmul__(self,other):
         return self*other

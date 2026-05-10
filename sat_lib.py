@@ -25,11 +25,9 @@ class RigidBody:
         if J.shape != (3, 3):
             raise ValueError("J must be a 3x3 matrix")
 
-        #self.ri = r0             # Initial position [array]
-        #self.vi = v0             # Initial velocity [array]
+        self.ri = r0             # Initial position [array]
+        self.vi = v0             # Initial velocity [array]
         self.force = np.zeros(3) # Force acting on body [array]
-
-        self.x = np.concatenate([r0, v0])
 
         self.m = m               # Mass of body
 
@@ -49,50 +47,58 @@ class RigidBody:
         :param force: Force vector [N*m]
         :param tau: Torque vector acting on body [N*m]
         """
-        self.force = force
-        ae = force / self.m # External acceleration
-        #self.x = su.step_RK4(dt, t, self.x, su.two_body, ae=ae)
-        self.x = su.step_RK4(dt, t, self.x, su.two_body)
 
-        self.tau = tau # Update torque
+        #self.force = force # Update force
+        #self.tau   = tau   # Update torque
 
-        # Create state vector (needed for step)
-        x = np.concatenate((self.q[:], self.w))
-        #x = su.step_RK4(dt, t, x, self.f, tau) # Perform step
-        x = su.step_RK4(dt, t, x, self.f)  # Perform step
+        self.force = np.array(force, dtype=np.float64, copy=True)
+        self.tau = np.array(tau, dtype=np.float64, copy=True)
 
-        self.q[:] = x[:4] # Update values in Quaternion class
-        self.w    = x[4:] # Update angular velocity
+        assert np.all(np.isfinite(self.q))
+        assert np.all(np.isfinite(self.w))
+        assert np.all(np.isfinite(self.tau))
 
-        self.q.normalize() # Normalize values in class
+        # State vector containing both kinematics and dynamics
+        x = np.concatenate([self.ri, self.vi, self.q, self.w])
+
+        x = su.step_RK4(dt, t, x, self.f) # Perform step (dont include ae)
+
+        self.ri   = x[  : 3] # Update position
+        self.vi   = x[ 3: 6] # Update velocity
+        self.q.q = x[ 6:10] # Update values in Quaternion class
+        self.w    = x[10:  ] # Update angular velocity
+
+        self.q.normalize()  # Normalize values in class
 
     def get_state(self):
-        return self.x[:3], self.x[3:], self.q, self.w
+        return self.ri, self.vi, self.q, self.w
 
     # noinspection PyUnusedLocal
-    def f(self, t: float, x: np.ndarray, tau: np.ndarray | None = None)  -> np.ndarray:
+    def f(self, t: float, x: np.ndarray, _: None=None, u: float=ol.mu)  -> np.ndarray:
         """
         Compute the time derivative of the state vector.
 
-        The state vector x contains both the quaternion and angular velocity,
-        formatted as: [q0, q1, q2, q3, w0, w1, w2].
+        The state vector x contains both the position, velocity, quaternion and angular velocity,
+        formatted as: [rx, ry, rz, vx, vy, vz, q0, q1, q2, q3, w0, w1, w2].
 
         :param t: Time [s]
-        :param x: State vector containing quaternion and angular velocity
-        :param tau: Torque vector acting on body [N*m]
+        :param x: State vector containing position, velocity, quaternion and angular velocity
+        :param _: Unused
+        :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
         :return: Time derivative of the state vector
         """
-        if tau is None: # If torque is not applied
-            tau = np.zeros(3)
 
         # Temp is used to differentiate it from the class self counterparts
-        q_temp = x[:4]
-        w_temp = x[4:]
+        vi_temp = x[3:6]
+        q_temp  = x[6:10]
+        w_temp  = x[10:]
 
-        dq = 0.5 * (su.Quaternion(q_temp) @ su.Quaternion(w_temp))
-        dw = self.J_inv @ (tau - np.cross(w_temp, self.J @ w_temp))
+        ai = self.force / self.m # Get acceleration vector
 
-        return np.concatenate((dq, dw))
+        dq = 0.5 * (su.Quaternion(q_temp) @ su.Quaternion([0,*w_temp])) # Normalize quaternion
+        dw = self.J_inv @ (self.tau - np.cross(w_temp, self.J @ w_temp))
+
+        return np.concatenate([vi_temp, ai, dq, dw])
 
 
 class Satellite:
@@ -139,7 +145,7 @@ class Satellite:
             q_io, w_iio, _ = ol.orbit_frame_from_state(ri, vi)
             self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, np.zeros(3))
             tau_u = self.ADCS.get_control()
-            self.body.update(t, dt, np.zeros(3), tau_u)
+            self.body.update(t, t_sub, np.zeros(3), tau_u)
             t += t_sub
         self.body.ri, self.body.vi = self.orbit.get_state()
 
@@ -149,8 +155,8 @@ class Satellite:
             ri, vi, q_ib, w_bib = self.get_state()
             q_io, w_iio, dw_iio = self.get_orbit_frame()
             self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, dw_iio)
-            tau_u = self.ADCS.get_control()
             f = -ol.mu / np.linalg.norm(ri) ** 3 * ri
+            tau_u = self.ADCS.get_control()
             self.body.update(t, t_sub, f, tau_u)
             t += t_sub
 
@@ -177,6 +183,13 @@ class ADCS_PD:
 
         # Simple PD controller for torque
         self.tau = -self.k1 * q_db[1:] - self.k2 * w_db
+
+        # Important commands. If function does
+        # not print 3 times then the ADCS breaks.
+        # No clue why
+        print("help")
+        print("me")
+        print("plz")
 
     def get_control(self):
         return self.tau
