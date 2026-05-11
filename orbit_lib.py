@@ -600,7 +600,7 @@ def orbit_frame_from_state(ri: np.ndarray, vi: np.ndarray) -> tuple[su.Quaternio
     :return: Tuple containing orbital frame parameters:
              - Orbit to inertial quaternion
              - Angular velocity of orbit frame [rad/s]
-             - Angular velocity of orbit frame [rad/s**2]
+             - Angular acceleration of orbit frame [rad/s**2]
     """
     # Radial direction (unit)
     r_norm = np.linalg.norm(ri)
