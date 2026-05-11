@@ -132,5 +132,5 @@ class Satellite:
                  - Position vector in ECI frame [km]
                  - Unit quaternion representing the rotation
         """
-        return self.ri, self.body.q
+        return self.ri.copy(), self.body.q.normalized()
 
