@@ -7,7 +7,6 @@ import simulator as sim
 import math
 
 import plotter as pl
-from orbit_lib import ground_track
 
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
@@ -51,6 +50,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         # Data logging variables
         self.pos_plot = np.concatenate(([t], self.ri)) # Initialize the plot data
 
+        # Not needed just for fun
         lon, lat = ol.ground_track(self.ri, self.theta_E)
         self.ground_track_plot = np.concatenate(([t], [lon, lat]))
 
@@ -71,6 +71,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         # Log orbit data
         self.pos_plot = np.vstack((self.pos_plot, np.concatenate(([t], self.ri))))
 
+        # Not needed just for fun
         lon, lat = ol.ground_track(self.ri, self.theta_E) # Ground track
         self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
 
@@ -90,6 +91,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.pos_plot = None # Clear the data after its saved
         pl.line_plot(file)
 
+        # Not needed just for fun
         file = su.log_pos("assignment2_ground_track", self.ground_track_plot)
         self.ground_track_plot = None  # Clear the data after its saved
         pl.ground_tracking(file, "3DModels/earth_8k.jpg")
