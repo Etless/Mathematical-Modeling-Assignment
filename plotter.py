@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import matplotlib.image as image
+from PIL import Image
+
 
 def line_plot(file_path, labels=None):
     data = np.loadtxt(file_path)
@@ -90,10 +92,31 @@ def main(argv):
         file_path = argv[2]
         if plot_type == 'lineplot':
             line_plot(file_path)
+        if plot_type == 'groundtrack':
+            plot_ground_track(file_path)
         else:
             print("Plot type not supported yet.")
     else:
         print("Wrong number of arguments. Expected 2 (plot_type, file_path) got {}".format(len(argv)-1))
 
+def plot_ground_track(file_path) :
+    phi , lam , h = np.loadtxt( file_path, unpack = True )
+    r_g = np.vstack((phi, lam ,1e3 * h)).T
+    r_idx = np.nonzero(np.abs(np.diff(r_g[:,0])) - np.pi / 2 > 0)[0]
+    fig, ax = plt.subplots()
+    with Image.open("Assignment6/earth_grid.jpg") as im :
+        im = ax.imshow(im, extent=(-180.0, 180.0, -90.0, 90.0))
+        start = 0
+        for idx in r_idx:
+            ax.plot(r_g[start:idx,0] / np.pi * 180, r_g[start:idx,1] / np.pi *180, linewidth=2 , color="black")
+            start = idx + 1
+        ax.plot(r_g[start:,0] / np.pi * 180, r_g[start:,1] / np.pi * 180, linewidth=2, color="black")
+        ax.grid(True)
+        ax.set_yticks(np.arange(-90,90+15,15))
+        ax.set_xticks(np.arange(-180,180+15,15))
+        ax.set_ylim(-90, 90)
+        ax.set_xlim(-180, 180)
+        ax.set(xlabel="Longitude", ylabel="Latitude", title="Ground track")
+        plt.show()
 if __name__ == "__main__":
     main(sys.argv)

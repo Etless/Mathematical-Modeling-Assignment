@@ -1,4 +1,7 @@
 import math
+
+from astropy.wcs.docstrings import phi0
+
 import simutils as su
 import numpy as np
 
@@ -7,6 +10,7 @@ from astropy.time import Time # Used for custom code
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
 R_E = 6378.1363  # Radius of earth [km]
 w_E = 7.292115e-5 # Angular speed of earth [rad/s]
+f_E = 1.0 / 298.257223563 # Flattening
 
 
 ###################################
@@ -711,3 +715,50 @@ class OrbitTLE:
             self.get_state()
 
         return orbit_frame_from_state(self._ri, self._vi)
+
+
+###################################
+# Assignment 6 | Algorithms       #
+###################################
+
+def geocentric_from_xyz(ri: np.ndarray, R: float=R_E) -> tuple[float, float, float]:
+    r = np.linalg.norm(ri).astype(float)
+
+    # TODO: lam, phi flipped I need to get to the bottom of this
+    phi = math.atan2(ri[2], math.sqrt(ri[0] ** 2 + ri[1] ** 2))  # Latitude
+    lam = math.atan2(ri[1], ri[0]) # Longitude
+    h = r - R # Height
+
+    return lam, phi, h
+
+def xyz_from_geocentric(phi: float, lam: float, h: float, R: float=R_E) -> np.ndarray:
+    r = h + R
+
+    # TODO: lam, phi flipped
+    ri = np.array([
+        r * math.cos(phi) * math.cos(lam),
+        r * math.cos(phi) * math.sin(lam),
+        r * math.sin(phi)
+    ])
+
+    return ri
+
+def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-6, R: float=R_E, f: float=f_E) -> tuple[float, float, float]:
+    phi, lam, _ = geocentric_from_xyz(ri, R=R)
+
+    d_lam = lam
+    N = R / (math.sqrt(1 - (2 * f - f ** 2) * (math.sin(d_lam)) ** 2))
+    d_lam_new = math.atan2(ri[2] + N * (2 * f - f ** 2) * math.sin(d_lam), math.sqrt(ri[0] ** 2 + ri[1] ** 2))
+
+    while abs(d_lam_new - d_lam) > delta:
+        d_lam = d_lam_new
+        N = R / (math.sqrt(1 - (2 * f - f ** 2) * (math.sin(d_lam)) ** 2))
+        d_lam_new = math.atan2(ri[2] + N * (2 * f - f ** 2) * math.sin(d_lam), math.sqrt(ri[0] ** 2 + ri[1] ** 2))
+
+    # TODO: task askes for d_lam not d_lam_new
+    h = math.sqrt(ri[0] ** 2 + ri[1] ** 2) / math.cos(d_lam) - N
+    return phi, d_lam, h
+
+
+def xyz_from_geodetic():
+    pass

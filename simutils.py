@@ -481,7 +481,6 @@ def dcm_to_euler(R: np.ndarray) -> tuple[float, float, float]:
     yaw   = math.atan2(R[1, 0], R[0, 0])
     return roll, pitch, yaw
 
-
 def euler_to_dcm(roll: float, pitch: float, yaw: float) -> np.ndarray: # Function not needed! The rotation_matrix_from_roll_pitch_yaw_sequence from orbit library instead
     """
     Converts a roll-pitch-yaw (RPY) sequence to a 3x3 rotation matrix (DCM).
