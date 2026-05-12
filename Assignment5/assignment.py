@@ -6,8 +6,6 @@ import sat_lib as sl
 import orbit_lib as ol
 import simulator as sim
 
-import plotter as pl
-
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
     def __init__(self, file_path):
@@ -54,7 +52,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
-
     def update(self, t, dt):
         self.sat.update(t, dt)
 
@@ -62,7 +59,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.theta_E += dt * ol.w_E
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
-
 
     def get(self):
         ri, _, q, _ = self.sat.get_state()
@@ -74,7 +70,6 @@ class ScenarioAssignment1(sim.BaseScenario):
             ['ECEF frame', np.zeros(3), self.q_E],
             ['ECI frame', np.zeros(3), su.Quaternion()]
         ]
-
 
     def post_process(self, t, dt):
         pass
