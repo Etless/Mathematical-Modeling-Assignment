@@ -58,8 +58,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
-        lon, lat, _ = ol.geodetic_from_xyz(ri)
-        lon = ol.angle_wrap_radians(lon + math.pi) - math.pi
+        lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
         # lon, lat = ol.ground_track(self.ri, self.theta_E)  # Ground track
         self.ground_track_plot = np.concatenate(([t], [lon, lat]))
 
@@ -73,10 +72,8 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
-        lon, lat, _ = ol.geodetic_from_xyz(ri)
-        lon = ol.angle_wrap_radians(lon + math.pi) - math.pi
-
-        #lon, lat = ol.ground_track(self.ri, self.theta_E)  # Ground track
+        lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
+        # lon, lat = ol.ground_track(self.ri, self.theta_E)  # Ground track
         self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
 
     def get(self):
