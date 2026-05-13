@@ -1,5 +1,3 @@
-import sys
-
 import numpy as np
 import simutils as su
 import orbit_lib as ol
