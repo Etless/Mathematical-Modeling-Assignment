@@ -757,31 +757,26 @@ def ecef_from_eci(ri: np.ndarray, theta: float) -> np.ndarray:
     R = rotation_matrix_from_classical_euler_sequence(-theta, 0.0, 0.0)
     return R @ ri
 
-def geocentric_from_xyz(ri: np.ndarray, R: float=R_E) -> tuple[float, float, float]:
+def geocentric_from_xyz(ri: np.ndarray) -> tuple[float, float, float]:
     """
     Convert from cartesian (ECEF) to geocentric latitude and longitude.
     :param ri: Satellite position vector in ECEF [km]
-    :param R: Planets radius (Default: 6378.1363) [km]
     :return: Tuple (latitude, longitude, height) [radians, radians, km]
     """
-    r = np.linalg.norm(ri).astype(float)
+    r = np.linalg.norm(ri).astype(float) # Height
 
     lam = math.atan2(ri[1], ri[0])
     phi = math.atan2(ri[2], math.sqrt(ri[0] ** 2 + ri[1] ** 2))
 
-    h = r - R # Height
-
-    return phi, lam, h
-def xyz_from_geocentric(phi: float, lam: float, h: float, R: float=R_E) -> np.ndarray:
+    return phi, lam, r
+def xyz_from_geocentric(phi: float, lam: float, r: float) -> np.ndarray:
     """
     Convert from geocentric latitude and longitude to cartesian (ECEF).
     :param phi: Latitude [radians]
     :param lam: Longitude [radians]
-    :param h: Height [km]
-    :param R: Planets radius (Default: 6378.1363) [km]
+    :param r: Height [km]
     :return: Satellite position vector in ECEF [km]
     """
-    r = h + R # Height
 
     ri = np.array([
         r * math.cos(phi) * math.cos(lam),
@@ -800,22 +795,24 @@ def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-4, a: float=R_E, f: float=
     :return: Tuple (latitude, longitude, height) [radians, radians, km]
     """
     # Delta values assumed at begining
-    d_phi, d_lam, _ = geocentric_from_xyz(ri, R=a)
+    phi, lam, _ = geocentric_from_xyz(ri)
 
     # Iterate until value is close "enough"
     e2 = 2 * f - f ** 2 # Eccentricity flattening relation
+    r_xy2 = math.sqrt(ri[0] ** 2 + ri[1] ** 2) # Length between x and y
     while True:
-        N = a / (math.sqrt(1 - e2 * (math.sin(d_phi)) ** 2))
-        d_phi_new = math.atan2(ri[2] + N * e2 * math.sin(d_phi), math.sqrt(ri[0] ** 2 + ri[1] ** 2))
+        N = a / (math.sqrt(1 - e2 * (math.sin(phi)) ** 2))
+        phi_new = math.atan2(ri[2] + N * e2 * math.sin(phi), r_xy2)
 
-        if abs(d_phi_new - d_phi) <= delta:
+        if abs(phi_new - phi) <= delta:
             break
 
-        d_phi = d_phi_new
+        phi = phi_new
 
-    # TODO: task askes for d_lam not d_lam_new
-    h = math.sqrt(ri[0] ** 2 + ri[1] ** 2) / math.cos(d_phi) - N # Height
-    return d_phi, d_lam, h
+    # FIXME: task askes for phi not phi_new
+    N = a / (math.sqrt(1 - e2 * (math.sin(phi_new)) ** 2))
+    h = math.sqrt(ri[0] ** 2 + ri[1] ** 2) / math.cos(phi_new) - N # Height
+    return phi_new, lam, h
 def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f_E) -> np.ndarray:
     """
     Convert from geodetic longitude and latitude to cartesian (ECEF)
@@ -832,7 +829,7 @@ def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f
     ri = np.array([
         (N + h) * math.cos(phi) * math.cos(lam),
         (N + h) * math.cos(phi) * math.sin(lam),
-        (N * (1 - e2) + h) * math.sin(phi)
+        (N * (1 - e2) + h) * math.sin(phi) # AI recomended e2 instead
     ])
 
     return ri
