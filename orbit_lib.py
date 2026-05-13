@@ -1,12 +1,9 @@
 import math
-import this
-
-from astropy.wcs.docstrings import phi0
 
 import simutils as su
 import numpy as np
 
-from astropy.time import Time # Used for custom code
+from astropy.time import Time # Used by custom code
 
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
 R_E = 6378.1363  # Radius of earth [km]
@@ -749,6 +746,7 @@ class OrbitPKepler:
         pass
 
 
+# More conversions
 def ecef_from_eci(ri: np.ndarray, theta: float) -> np.ndarray:
     """
     Converts Earth-Centered Inertial (ECI) frame to Earth-Centered Earth-Fixed (ECEF) frame
@@ -774,7 +772,6 @@ def geocentric_from_xyz(ri: np.ndarray, R: float=R_E) -> tuple[float, float, flo
     h = r - R # Height
 
     return phi, lam, h
-
 def xyz_from_geocentric(phi: float, lam: float, h: float, R: float=R_E) -> np.ndarray:
     """
     Convert from geocentric latitude and longitude to cartesian (ECEF).
@@ -793,7 +790,6 @@ def xyz_from_geocentric(phi: float, lam: float, h: float, R: float=R_E) -> np.nd
     ])
 
     return ri
-
 def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-4, a: float=R_E, f: float=f_E) -> tuple[float, float, float]:
     """
     Convert from cartesian (ECEF) to geodetic longitude and latitude
@@ -820,8 +816,6 @@ def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-4, a: float=R_E, f: float=
     # TODO: task askes for d_lam not d_lam_new
     h = math.sqrt(ri[0] ** 2 + ri[1] ** 2) / math.cos(d_phi) - N # Height
     return d_phi, d_lam, h
-
-
 def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f_E) -> np.ndarray:
     """
     Convert from geodetic longitude and latitude to cartesian (ECEF)
