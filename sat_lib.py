@@ -101,7 +101,7 @@ class RigidBody:
         return np.concatenate([vi_, ai, dq, dw])
 
 class Satellite:
-    def __init__(self, q_ib: su.Quaternion, w_bib: np.ndarray, J: np.ndarray, ri: np.ndarray=np.zeros(3), vi: np.ndarray=np.zeros(3), m: float=1, orbit=None, substeps: int=0) -> None:
+    def __init__(self, q_ib: su.Quaternion, w_bib: np.ndarray, J: np.ndarray, ri: np.ndarray | None=None, vi: np.ndarray | None=None, m: float=1, orbit=None, substeps: int=0) -> None:
         """
         Satellite class used to represent a satellite.
 
@@ -117,6 +117,12 @@ class Satellite:
         :param orbit: Orbit propagation object (default: None)
         :param substeps: Number of ADCS substeps per update (default: 0)
         """
+        # Handle None
+        if ri is None:
+            ri = np.zeros(3)
+        if vi is None:
+            vi = np.zeros(3)
+
         # Set orbit class to be used for the orbit
         self.orbit = orbit
 
@@ -202,7 +208,6 @@ class Satellite:
 
         # Manualy update rigid body position and velocity from orbit
         self.body.ri, self.body.vi = self.orbit.get_state()
-
     def update_with_dynamics(self, t: float, dt: float) -> None:
         """
         Update the state of the satellite based on dynamics propagation.
@@ -264,3 +269,23 @@ class ADCS_PD:
     def get_control(self):
         return self.tau
 
+
+###################################
+# Assignment 7 | Algorithms       #
+###################################
+
+class Gyro:
+    def __init__(self):
+        pass
+
+class Magnetometer:
+    def __init__(self):
+        pass
+
+class FineSunSensor:
+    def __init__(self):
+        pass
+
+class EarthSatellite:
+    def __init__(self):
+        pass

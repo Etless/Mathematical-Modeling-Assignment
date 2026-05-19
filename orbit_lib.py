@@ -787,7 +787,6 @@ class OrbitPKepler:
 
         self._state_valid = False
 
-
     def get_params(self) -> tuple[float, float, float, float, float, float, float, float]:
         return self.a, self.e, self.Me, self.omega, self.i, self.w, self.dn, self.d2n
 
@@ -813,13 +812,23 @@ class OrbitPKepler:
 # More conversions
 def ecef_from_eci(ri: np.ndarray, theta: float) -> np.ndarray:
     """
-    Converts Earth-Centered Inertial (ECI) frame to Earth-Centered Earth-Fixed (ECEF) frame
-    :param ri: Satellite position vector in ECI frame [km]
+    Converts Earth-Centered Inertial (ECI) frame to Earth-Centered Earth-Fixed (ECEF) frame.
+    :param ri:
     :param theta: Earth rotation angle (Greenwich sidereal angle) [radians]
     :return: Satellite position vector in ECEF [km]
     """
     R = rotation_matrix_from_classical_euler_sequence(-theta, 0.0, 0.0)
     return R @ ri
+def eci_from_ecef(ri: np.ndarray, theta: float) -> np.ndarray:
+    """
+    Converts Earth-Centered Earth-Fixed (ECEF) frame to Earth-Centered Inertial (ECI) frame.
+    :param ri: Satellite position vector in ECI frame [km]
+    :param theta: Earth rotation angle (Greenwich sidereal angle) [radians]
+    :return: Satellite position vector in ECI [km]
+    """
+    R = rotation_matrix_from_classical_euler_sequence(theta, 0.0, 0.0)
+    return R @ ri
+
 
 def geocentric_from_xyz(ri: np.ndarray) -> tuple[float, float, float]:
     """
@@ -897,3 +906,29 @@ def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f
     ])
 
     return ri
+
+
+###################################
+# Assignment 7 | Algorithms       #
+###################################
+
+# TODO: Use theta G instead of recalculating it from julian date
+def magnetic_field_dipol(ri: np.ndarray, theta: float, phi: float=1.4089869129940638, lam: float=5.013283743428512, m: float=7.767e6) -> np.ndarray:
+    """
+    Calculate magnetic flux density using a centered dipole model.
+    :param ri: Satellite position vector in ECI frame [km]
+    :param theta: Earth rotation angle (Greenwich sidereal angle) [radians]
+    :param phi: Magnetic dipole pole latitude (default: -72.76°) [radians]
+    :param lam: Magnetic dipole pole longitude (default: 80.73°) [radians]
+    :param m: Magnetic dipole moment (default: 7.767e6) [T*km**3]
+    :return: Magnetic flux density vector in ECI [T]
+    """
+    # ECI from ECEF is made for ri but works for mE also due
+    # to both containing three elements
+    mi = eci_from_ecef(m * xyz_from_geocentric(phi, lam, 1.0), theta)
+
+    r = np.linalg.norm(ri).astype(float)
+    return (r ** 2 * mi - 3.0 * np.dot(ri, mi) * ri) / r ** 5
+
+def sun_vector(JD: float) -> np.ndarray:
+    pass
