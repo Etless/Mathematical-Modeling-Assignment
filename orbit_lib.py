@@ -3,6 +3,8 @@ import math
 import simutils as su
 import numpy as np
 
+import datetime
+
 from astropy.time import Time # Used by custom code
 
 mu = 398600.4418 # Standard gravitational parameter [km**3/s**-2]
@@ -103,8 +105,17 @@ def orbital_period_from_revs_per_day(x: float) -> float:
     """
     return 24 * 3600 / x
 
+def semi_major_axis_from_mean_motion(n: float, u: float=mu) -> float:
+    """
+    Calculates semi-major axis from mean motion.
+    :param n: Mean motion [rad/s]
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Semi-major axis [km]
+    """
+    return (u/n**2) ** (1/3) # Semi-major axis
+
 # TLE functions
-def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str, float, float, float, float, float, float]:
+def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str, float, float, float, float, float, float, float, float]:
     # noinspection SpellCheckingInspection
     """
     Extracts orbital parameters from TLE file.
@@ -118,11 +129,13 @@ def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str,
              - RAAN [radians]
              - inclination [radians]
              - argument of perigee [radians]
+             - first derivative of mean motion [rad/s**2]
+             - second derivative of mean motion [rad/s**3]
     """
     # Use given function to read TLE file.
     # Function has the ability to read multiple TLE satellites
     # from a single file
-    tle_data = su.read_TLE_file(tle_path) # Returns (Name, epoch, e, rev, Me, i, omega, w)
+    tle_data = su.read_TLE_file(tle_path) # Returns (Name, epoch, e, rev, Me, i, omega, w, dn, d2n)
     if tle_data is None or len(tle_data) == 0:
         raise ValueError("No valid TLE data found in file")
 
@@ -138,7 +151,9 @@ def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str,
     i     = deg2rad(tle_data[5]) # Inclination          [float] [degrees] -> [radians]
     w     = deg2rad(tle_data[7]) # Argument of perigee  [float] [degrees] -> [radians]
 
-    return epoch, e, rev, Me, omega, i, w
+    dn    =  4.0 * math.pi / (24.0 * 3600.0) ** 2 * tle_data[8] # First derivative of Mean Motion
+    d2n   = 12.0 * math.pi / (24.0 * 3600.0) ** 3 * tle_data[9] # Second derivative of Mean Motion
+    return epoch, e, rev, Me, omega, i, w, dn, d2n
 def tle_params_from_orbit_params():
     pass
 
@@ -385,7 +400,7 @@ def state_from_tle_params(e: float, n: float, Me: float, omega: float, i: float,
     # Updated for assignement 5. Originaly used revs per day
     # to calculate the orbital period, but I  was adviced to
     # use n (n = 2 * pi / T) instead.
-    a = (u/n**2) ** (1/3) # Semi-major axis
+    a = semi_major_axis_from_mean_motion(n, u)
     h = math.sqrt(a * u * (1 - e ** 2))
 
     theta = true_anomaly_from_mean_anomaly(Me, e)
@@ -465,9 +480,21 @@ def epoch_to_julian_date(epoch: str) -> float:
     year = int(epoch[:2])
     day  = float(epoch[2:]) # Includes fraction
     leap = 1 if year % 4 == 0 and day <= 60 else 0 # Uses day 60 due to UTC being included
-    print(year+2000, day, leap)
 
     return 2451544.5 + year * 365 + year // 4 + day - leap
+def datetime_to_julian_date(d: datetime.datetime) -> float:
+    """
+    Converts datetime to Julian date.
+
+    :param d: Date as datetime
+    :return: Julian date
+    """
+    year = d.year % 100 # Only retrive the 2 last digits
+    doy = d.timetuple().tm_yday # Day of year
+    fraction = (d.hour * 3600 + d.minute * 60 + d.second) / 86400 # Only factors in to seconds
+
+    tle_epoch = doy + fraction
+    return epoch_to_julian_date(f"{int(year):02d}{tle_epoch:012.8f}")
 
 
 ###################################
@@ -719,9 +746,10 @@ class OrbitTLE:
 # Assignment 6 | Algorithms       #
 ###################################
 
+# TODO: Add comments
 class OrbitPKepler:
 
-    def __init__(self, a: float, e: float, Me: float, omega: float, i: float, w: float, dn: float, d2n: float, u: float=mu) -> None:
+    def __init__(self, a: float, e: float, Me: float, omega: float, i: float, w: float, dn: float, d2n: float, J2: float=0.001082629821313, u: float=mu, R: float=R_E) -> None:
         self.a = a
         self.e = e
         self.Me = Me
@@ -730,20 +758,56 @@ class OrbitPKepler:
         self.w = w
         self.dn = dn
         self.d2n = d2n
+        self.J2 = J2
         self.u = u
+        self.R = R
+
+        self._ri = None
+        self._vi = None
+
+        # Shows if state is accurate
+        self._state_valid = False
 
     def propagate(self, dt: float) -> None:
-        p = self.a * (1 - self.e ** 2)
+        p = self.a * (1.0 - self.e ** 2)
         n = math.sqrt(self.u / self.a ** 3)
 
-    def get_params(self) -> tuple[float, float, float, float, float, float]:
-        pass
+        # Propegate orbital parameters
+        self.a -= 2.0 * self.a / (3.0 * n) * self.dn * dt
+        self.e -= 2.0 * (1.0 - self.e) / (3.0 * n) * self.dn * dt
+
+        self.omega -= 3.0 * n * self.R ** 2 * self.J2 / (2.0 * p ** 2) * math.cos(self.i) * dt
+        self.w     += 3.0 * n * self.R ** 2 * self.J2 / (4.0 * p ** 2) * (4.0 - 5.0 * math.sin(self.i) ** 2) * dt
+        self.Me    += n * dt + 0.5 * self.dn * dt ** 2 + 1.0 / 6.0 * self.d2n * dt ** 3
+
+        # Wrap radians inside range [0, 2pi]
+        self.omega = angle_wrap_radians(self.omega)
+        self.w     = angle_wrap_radians(self.w)
+        self.Me    = angle_wrap_radians(self.Me)
+
+        self._state_valid = False
+
+
+    def get_params(self) -> tuple[float, float, float, float, float, float, float, float]:
+        return self.a, self.e, self.Me, self.omega, self.i, self.w, self.dn, self.d2n
 
     def get_state(self) -> tuple[np.ndarray, np.ndarray]:
-        pass
+        n = math.sqrt(self.u / self.a ** 3)
+
+        # Get the ri, vi
+        self._ri, self._vi = state_from_tle_params(self.e, n, self.Me, self.omega, self.i, self.w)
+        self._state_valid = True
+
+        return self._ri, self._vi
 
     def get_orbit_frame(self) -> tuple[su.Quaternion, np.ndarray, np.ndarray]:
-        pass
+        # If mean anomaly is propagated and
+        # state vectors have not been
+        # recalculated then calculate them
+        if not self._state_valid:
+            self.get_state()
+
+        return orbit_frame_from_state(self._ri, self._vi)
 
 
 # More conversions

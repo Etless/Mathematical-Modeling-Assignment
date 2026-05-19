@@ -150,18 +150,39 @@ def read_TLE_file(file_name: str,satellite_name: str=''):
 
   for i in range(0,len(file_contents),3):
     if satellite_name in file_contents[i]:
-      Name = file_contents[i].strip()
+      Name = file_contents[i].strip() # Get satellite name
+
       line1 = file_contents[i+1].strip().split()
       line2 = file_contents[i+2].strip().split()
-      if validate_entry(Name,line1,line2):
-        epoch = line1[3] #float(line1[3])
-        e = float("0."+line2[4])
-        rev = float(line2[7])
-        Me = float(line2[6])
-        i = float(line2[2])
-        O = float(line2[3])
-        w = float(line2[5])
-        tle_data.append((Name,epoch,e,rev,Me,i,O,w))
+
+      if validate_entry(Name,line1,line2): # Validate data
+
+        # Retrive elements from data
+        _ ,_ , _, sepoch,  sdn, sddn, sbstar, _, _ = line1
+        _, _, si,     sO, secc,   sw,     sM, srev = line2
+
+        epoch = sepoch # Use string to simnplify later functions
+        e   = float("0."+secc)
+        rev = float(srev[:-6])
+        Me  = float(sM)
+        i   = float(si)
+        O   = float(sO)
+        w   = float(sw)
+
+        dn  = float(sdn)
+        s1, s2 = sddn.split(sddn[-2])
+        if s1[0].isdigit():
+            d2n = float("." + s1 + "e" + sddn[-2] + s2)
+        else:
+            d2n = float(s1[0] + "." + s1[1:] + "e"+ sddn[-2] + s2)
+
+        s1, s2 = sbstar.split(sbstar[-2])
+        if s1[0].isdigit():
+            bstar = float("." + s1 + "e" + sbstar[-2] + s2)
+        else:
+            bstar = float(s1[0] + "." + s1[1:] + "e" + sbstar[-2] + s2)
+
+        tle_data.append((Name,epoch,e,rev,Me,i,O,w, dn, d2n, bstar))
       else:
         print("Error reading entry:\n{}{}{}".format(file_contents[i],file_contents[i+1],file_contents[i+2]))
         break

@@ -122,7 +122,7 @@ class Satellite:
 
         # Get state from orbit
         if self.orbit is not None:
-            ri, vi, _, _ = self.orbit.get_state()
+            ri, vi = self.orbit.get_state()
 
         # Create rigid body of satellite
         self.body = RigidBody(ri, vi, m, q_ib, w_bib, J)

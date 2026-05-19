@@ -1,4 +1,5 @@
 import math
+import datetime
 
 import numpy as np
 import simutils as su
@@ -18,23 +19,26 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.tau = None
 
         # Load TLE file and get all elements assigned to it
-        epoch, e, rev, Me, omega, i, w = ol.orbit_params_from_tle_params(file_path, debug=True)
+        epoch, e, rev, Me, omega, i, w, dn, d2n = ol.orbit_params_from_tle_params(file_path, debug=True)
 
         ### Convert arguments to values ###
-        JD = ol.epoch_to_julian_date(epoch)
-        self.theta_G0 = ol.sidereal_angle(JD)
+        self.JD_E = ol.epoch_to_julian_date(epoch)
+        self.theta_G0 = ol.sidereal_angle(self.JD_E)
 
         # Julian Date information
-        print(f"Julian Date: {JD}")
+        print(f"Julian Date: {self.JD_E}")
         print(f"Sidereal Angle: {self.theta_G0} [{ol.rad2deg(self.theta_G0):.2f}]")
 
-        print(ol.julian_date_to_iso(JD))
+        print(ol.julian_date_to_iso(self.JD_E))
 
         # Orbit params
         T = ol.orbital_period_from_revs_per_day(rev)
         n = 2 * math.pi / T
 
-        self.r0, self.v0 = ol.state_from_tle_params(e, n, Me, omega, i, w)  # Satellite position
+        a = ol.semi_major_axis_from_mean_motion(n)
+        self.orbit = ol.OrbitPKepler(a, e, Me, omega, i, w, dn, d2n)
+
+        #self.r0, self.v0 = ol.state_from_tle_params(e, n, Me, omega, i, w)  # Satellite position
 
         self.ground_track_plot = None
 
@@ -47,14 +51,19 @@ class ScenarioAssignment1(sim.BaseScenario):
             [-0.00000633, -0.00001598,  0.00146333],
         ])
 
-        self.sat = sl.Satellite(q0, w0, J, self.r0, self.v0, substeps=50)
 
-        self.q_E = su.Quaternion()
 
         # Earth rotation variables
-        self.theta_E = self.theta_G0  # Offset to the rotation
+        JD_now = ol.datetime_to_julian_date(datetime.datetime.now())
+        delta_t = (24 * 3600)*(JD_now - self.JD_E)
+
+        self.theta_E = self.theta_G0 + ol.w_E * delta_t  # Offset to the rotation
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
+
+        # Satellite varaibles
+        self.orbit.propagate(delta_t)  # Only update orbit (not rotation) due to big delta time
+        self.sat = sl.Satellite(q0, w0, J, None, None, substeps=50, orbit=self.orbit)
 
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
