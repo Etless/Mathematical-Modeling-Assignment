@@ -63,8 +63,10 @@ class ScenarioAssignment1(sim.BaseScenario):
 
         # Satellite varaibles
         self.orbit.propagate(delta_t)  # Only update orbit (not rotation) due to big delta time
-        self.sat = sl.Satellite(q0, w0, J, None, None, substeps=50, orbit=self.orbit)
+        self.sat = sl.Satellite(q0, w0, J, substeps=50, orbit=self.orbit)
 
+
+        # FIXME: Use the updated ground track (earth_grid)
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
         lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
@@ -104,7 +106,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
 
 def main():
-  file_path = "Assignment5/HINCUBE.txt"
+  file_path = "Assignment6/HINCUBE.txt"
   scenario = ScenarioAssignment1(file_path)
 
   sim_config = {'t_0': 0, 't_e': 5731, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
