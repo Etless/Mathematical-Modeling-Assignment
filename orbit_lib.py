@@ -829,7 +829,6 @@ def eci_from_ecef(ri: np.ndarray, theta: float) -> np.ndarray:
     R = rotation_matrix_from_classical_euler_sequence(theta, 0.0, 0.0)
     return R @ ri
 
-
 def geocentric_from_xyz(ri: np.ndarray) -> tuple[float, float, float]:
     """
     Convert from cartesian (ECEF) to geocentric latitude and longitude.
@@ -913,16 +912,18 @@ def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f
 ###################################
 
 # TODO: Use theta G instead of recalculating it from julian date
-def magnetic_field_dipol(ri: np.ndarray, theta: float, phi: float=1.4089869129940638, lam: float=5.013283743428512, m: float=7.767e6) -> np.ndarray:
+def magnetic_field_dipol(ri: np.ndarray, JD: float, phi: float=1.4089869129940638, lam: float=5.013283743428512, m: float=7.767e6) -> np.ndarray:
     """
     Calculate magnetic flux density using a centered dipole model.
     :param ri: Satellite position vector in ECI frame [km]
-    :param theta: Earth rotation angle (Greenwich sidereal angle) [radians]
+    :param JD: Julian Date (days since J2000.0, can include fractional day)
     :param phi: Magnetic dipole pole latitude (default: -72.76°) [radians]
     :param lam: Magnetic dipole pole longitude (default: 80.73°) [radians]
     :param m: Magnetic dipole moment (default: 7.767e6) [T*km**3]
     :return: Magnetic flux density vector in ECI [T]
     """
+    theta = sidereal_angle(JD) # Get Earth rotation
+
     # ECI from ECEF is made for ri but works for mE also due
     # to both containing three elements
     mi = eci_from_ecef(m * xyz_from_geocentric(phi, lam, 1.0), theta)
@@ -931,4 +932,25 @@ def magnetic_field_dipol(ri: np.ndarray, theta: float, phi: float=1.408986912994
     return (r ** 2 * mi - 3.0 * np.dot(ri, mi) * ri) / r ** 5
 
 def sun_vector(JD: float) -> np.ndarray:
-    pass
+    T = (JD - 2451545.0) / 36525.0
+    lam_M = 280.46 + 36000.771 * T
+    M = 357.5291092 + 35999.05034 * T
+    eps = 23.439291 - 0.0130042 * T
+    AU = 149597870.0
+
+    lam_M = angle_wrap_radians(deg2rad(lam_M))
+    M = angle_wrap_radians(deg2rad(M))
+    eps = angle_wrap_radians(deg2rad(eps))
+
+    lam_e = lam_M + 1.91466671 * math.sin(M) + 0.019994643 * math.sin(2*M)
+
+    lam_e = angle_wrap_radians(lam_e)
+
+    r = AU * (1.000140612 - 0.016708617 * math.cos(M) - 0.000139589 * math.cos(2*M))
+    si = np.array([
+        r * math.cos(lam_e),
+        r * math.cos(eps) * math.sin(lam_e),
+        r * math.sin(eps) * math.sin(lam_e)
+    ])
+
+    return si
