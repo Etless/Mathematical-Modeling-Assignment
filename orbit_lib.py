@@ -931,14 +931,13 @@ def magnetic_field_dipol(ri: np.ndarray, JD: float, phi: float=1.408986912994063
     r = np.linalg.norm(ri).astype(float)
     return (r ** 2 * mi - 3.0 * np.dot(ri, mi) * ri) / r ** 5
 
-def sun_vector(JD: float) -> np.ndarray:
+def sun_vector(JD: float, AU: float=149597870.0) -> np.ndarray:
     T = (JD - 2451545.0) / 36525.0
     lam_M = 280.46 + 36000.771 * T
     M = 357.5291092 + 35999.05034 * T
     eps = 23.439291 - 0.0130042 * T
-    AU = 149597870.0
 
-    lam_M = angle_wrap_radians(deg2rad(lam_M))
+    lam_M = angle_wrap_degrees(lam_M)
     M = angle_wrap_radians(deg2rad(M))
     eps = angle_wrap_radians(deg2rad(eps))
 

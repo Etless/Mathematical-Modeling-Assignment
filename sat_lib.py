@@ -275,12 +275,93 @@ class ADCS_PD:
 ###################################
 
 class Gyro:
-    def __init__(self):
-        pass
+    def __init__(self, q_bs: su.Quaternion, p_b: np.ndarray=np.zeros(3), z0: np.ndarray=np.zeros(3), sigma_g2: float=0, sigma_bg2: float=0, beta_w0: np.ndarray=np.zeros(3)) -> None:
+        """
+        Gyro sensor model with additive white noise and time-varying bias drift.
+
+        :param q_bs: Quaternion orientation of sensor frame relative to body frame
+        :param p_b: Position vector of sensor relative to body frame origin (default: zero vector) [km]
+        :param z0: Initial gyro angular measurement (default: zero vector) [rad/s]
+        :param sigma_g2: Variance of gyro noise (default: 0)
+        :param sigma_bg2: Variance of the bias drift noise (default: 0)
+        :param beta_w0: Initial time-varying offset (default: zero vector) [rad/s]
+        """
+        # Variance
+        self.sigma_g = math.sqrt(sigma_g2)
+        self.sigma_bg = math.sqrt(sigma_bg2)
+
+        # Sensor position and orientation
+        self.q_bs = q_bs
+        self.p_b = p_b
+
+        self.beta_w = beta_w0
+
+        # Output
+        self.z = z0
+
+    def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray) -> None:
+        """
+        Update sensor values.
+        :param t: Time [s]
+        :param dt: Time step [s]
+        :param ri: Position vector in ECI frame [km]
+        :param vi: Velocity vector in ECI frame [km/s]
+        :param q_ib: Quaternion rotating body frame to ECI frame
+        :param w_bib: Angular velocity in body frame [rad/s]
+        """
+        # Split into three parts (true, offset & noise)
+        eta_w = np.random.normal(0, self.sigma_g, 3)
+
+        # Time-varying error/offset also referred to as the bias (dependent on delta time)
+        self.beta_w += np.random.normal(0, self.sigma_bg, 3) * dt
+
+        # Rotate angular velocity from body frame to sensor frame
+        w_t = self.q_bs.conjugated().rotate(w_bib)
+
+        # Simulated gyro measurement
+        self.z = w_t + self.beta_w + eta_w
+
+    def output(self, body_frame: bool=False) -> np.ndarray:
+        """
+        Returns the simulated gyro measurement.
+
+        Output can be choosen to either be in sensor frame or
+        body frame by configuring the body_frame parameter.
+
+        :param body_frame: If measurement should be in body frame (default: False)
+        :return: Gyro angular velocity measurement [rad/s]
+        """
+        return self.q_bs.rotate(self.z) if body_frame else self.z
 
 class Magnetometer:
-    def __init__(self):
-        pass
+    def __init__(self, q_bs, p_b, z0, sigma_B2, JD):
+        # Variance
+        self.sigma_B = math.sqrt(sigma_B2)
+
+        # Sensor position and orientation
+        self.q_bs = q_bs
+        self.p_b = p_b
+
+        # Output
+        self.z = z0
+
+        self.JD = JD
+
+    def update(self, t, dt, ri, vi, q_ib, w_bib):
+        # Noise
+        eta_B = np.random.normal(0, self.sigma_B, 3)
+
+        # Get the magnetix flux density
+        B_iE = ol.magnetic_field_dipol(ri, self.JD + t / (24.0 * 3600.0))
+
+        # Internal frame -> body frame -> sensor frame
+        q_is = q_ib @ self.q_bs
+
+        # Rotate magnetix flux density to sensor frame and add noise
+        self.z = q_is.conjugated().rotate(B_iE) + eta_B
+
+    def output(self, body_frame: bool=False) -> np.ndarray:
+        return self.q_bs.rotate(self.z) if body_frame else self.z
 
 class FineSunSensor:
     def __init__(self):
