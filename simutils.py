@@ -511,3 +511,15 @@ def euler_to_dcm(roll: float, pitch: float, yaw: float) -> np.ndarray: # Functio
     :return: 3x3 rotation matrix
     """
     return ol.rotation_matrix_from_roll_pitch_yaw_sequence(roll, pitch, yaw)
+
+###################################
+# Assignment 7 | Custom functions #
+###################################
+
+def unit(x: np.ndarray) -> np.ndarray:
+    """
+    Simple function that returns the unit vector.
+    :param x: Vector to be converted
+    :return: Unit vector
+    """
+    return x / np.linalg.norm(x)

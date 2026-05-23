@@ -364,9 +364,72 @@ class Magnetometer:
         return self.q_bs.rotate(self.z) if body_frame else self.z
 
 class FineSunSensor:
+    def __init__(self, q_bs, p_b, z0, sigma_s2, alpha, JD):
+        # Variance
+        self.sigma_s = math.sqrt(sigma_s2)
+
+        # Sensor position and orientation
+        self.p_b = p_b
+        self.q_bs = q_bs
+
+        # Output
+        self.z = z0
+
+        # FOV (threshold)
+        self.alpha = alpha
+
+        self.JD = JD
+
+    def update(self, t, dt, ri, vi, q_ib, w_bib):
+
+        # Get sun vector and transform from ECI to body frame
+        si = ol.sun_vector(self.JD + t / (24.0 * 3600.0))
+        s_b_sensor = q_ib.conjugated().rotate(si - ri)
+
+        # Normilize value
+        s_bt = s_b_sensor / np.linalg.norm(s_b_sensor)
+
+        # Transform value into sensor frame
+        s_st = self.q_bs.conjugated().rotate(s_bt)
+
+        x, y ,z = s_st
+        # Check FOV
+        if z > 0 and math.atan(math.sqrt(x ** 2 + y ** 2) / 2) < self.alpha / 2:
+            eta_s = np.random.normal(0, self.sigma_s, 3)
+            self.z = s_st + eta_s
+        else:
+            self.z = 0
+
+    def output(self, body_frame: bool=False) -> np.ndarray:
+        return self.q_bs.rotate(self.z) if body_frame else self.z
+
+
+class TRIAD:
     def __init__(self):
         pass
 
-class EarthSatellite:
+    def update(self, a0, ab, b0, bb):
+        Uo = b0
+        Ub = bb
+        Vo = a0
+        Vb = ab
+
+        # WH-wha-what's going on-on? https://www.youtube.com/watch?v=k85mRPqvMbE&list=RDk85mRPqvMbE
+        to1 = su.unit(Uo)
+        to2 = su.unit(np.cross(to1, Vo))
+        to3 = su.unit(np.cross(to2, to1))
+
+        To = np.array([to1, to2, to3])
+
+        tb1 = su.unit(Ub)
+        tb2 = su.unit(np.cross(tb1, Vb))
+        tb3 = su.unit(np.cross(tb2, tb1))
+
+        Tb = np.array([tb1, tb2, tb3])
+
+
+        return Tb.T @ To
+
+class Davenport:
     def __init__(self):
         pass
