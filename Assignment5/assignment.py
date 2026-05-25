@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 import simutils as su
-import sat_lib as sl
+import Assignment6.sat_lib_assign6 as sl
 import orbit_lib as ol
 import simulator as sim
 
@@ -16,7 +16,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.tau = None
 
         # Load TLE file and get all elements assigned to it
-        epoch, e, rev, Me, omega, i, w = ol.orbit_params_from_tle_params(file_path, debug=True)
+        epoch, e, rev, Me, omega, i, w, _, _ = ol.orbit_params_from_tle_params(file_path, debug=True)
 
         ### Convert arguments to values ###
         JD = ol.epoch_to_julian_date(epoch)
