@@ -3,7 +3,7 @@ import datetime
 
 import numpy as np
 import simutils as su
-import sat_lib as sl
+import sat_lib_assign6 as sl
 import orbit_lib as ol
 import simulator as sim
 
