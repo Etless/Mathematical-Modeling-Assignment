@@ -62,9 +62,25 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         # Satellite varaibles
-        self.orbit.propagate(delta_t)  # Only update orbit (not rotation) due to big delta time
-        self.sat = sl.Satellite(q0, w0, J, substeps=50, orbit=self.orbit)
+        cos_x = math.cos(math.pi / 4)
+        sin_x = math.sin(math.pi / 4)
 
+        # Create a sun sensor for each side of the satellite
+        sun_sensors = [
+            sl.FineSunSensor(su.Quaternion([cos_x,      0,  sin_x, 0]), np.array([ 0.1,  0.0,  0.0]), np.zeros(3), 0.2, math.pi, JD_now),
+            sl.FineSunSensor(su.Quaternion([cos_x,      0, -sin_x, 0]), np.array([-0.1,  0.0,  0.0]), np.zeros(3), 0.2, math.pi, JD_now),
+            sl.FineSunSensor(su.Quaternion([cos_x, -sin_x,      0, 0]), np.array([ 0.0,  0.1,  0.0]), np.zeros(3), 0.2, math.pi, JD_now),
+            sl.FineSunSensor(su.Quaternion([cos_x,  sin_x,      0, 0]), np.array([ 0.0, -0.1,  0.0]), np.zeros(3), 0.2, math.pi, JD_now),
+            sl.FineSunSensor(su.Quaternion([    1,      0,      0, 0]), np.array([ 0.0,  0.0,  0.1]), np.zeros(3), 0.2, math.pi, JD_now),
+            sl.FineSunSensor(su.Quaternion([    0,      1,      0, 0]), np.array([ 0.0,  0.0, -0.1]), np.zeros(3), 0.2, math.pi, JD_now)
+        ]
+
+        # Add a gyro & magnetometer sensor to the satellite
+        gyro_sensor = sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.array([0, 0, 0]), np.zeros(3), 0.1E-5, 0)
+        mag_sensor = sl.Magnetometer(su.Quaternion([1, 0, 0, 0]), np.array([0, 0, 0]), np.zeros(3), 0.4E-20, JD_now)
+
+        self.orbit.propagate(delta_t)  # Only update orbit (not rotation) due to big delta time
+        self.sat = sl.Satellite(q0, w0, J, substeps=10, orbit=self.orbit, JD=JD_now, sensors=[gyro_sensor, mag_sensor, *sun_sensors])
 
         # FIXME: Use the updated ground track (earth_grid)
         # Not needed just for fun

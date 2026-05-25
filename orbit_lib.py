@@ -911,7 +911,6 @@ def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f
 # Assignment 7 | Algorithms       #
 ###################################
 
-# TODO: Use theta G instead of recalculating it from julian date
 def magnetic_field_dipol(ri: np.ndarray, JD: float, phi: float=1.4089869129940638, lam: float=5.013283743428512, m: float=7.767e6) -> np.ndarray:
     """
     Calculate magnetic flux density using a centered dipole model.
@@ -932,7 +931,15 @@ def magnetic_field_dipol(ri: np.ndarray, JD: float, phi: float=1.408986912994063
     return (r ** 2 * mi - 3.0 * np.dot(ri, mi) * ri) / r ** 5
 
 def sun_vector(JD: float, AU: float=149597870.0) -> np.ndarray:
+    """
+    Calculates the Sun position vector in the ECI frame
+    :param JD: Julian Date (days since J2000.0, can include fractional day)
+    :param AU: Astronomical unit (default: 149597870.0) [km]
+    :return: Sun position vector in ECI frame [km]
+    """
+    # Convert Julan Date to Julian Century
     T = (JD - 2451545.0) / 36525.0
+
     lam_M = 280.46 + 36000.771 * T
     M = 357.5291092 + 35999.05034 * T
     eps = 23.439291 - 0.0130042 * T
@@ -943,7 +950,7 @@ def sun_vector(JD: float, AU: float=149597870.0) -> np.ndarray:
 
     lam_e = lam_M + 1.91466671 * math.sin(M) + 0.019994643 * math.sin(2*M)
 
-    lam_e = angle_wrap_radians(lam_e)
+    lam_e = angle_wrap_radians(deg2rad(lam_e))
 
     r = AU * (1.000140612 - 0.016708617 * math.cos(M) - 0.000139589 * math.cos(2*M))
     si = np.array([

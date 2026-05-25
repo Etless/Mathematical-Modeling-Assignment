@@ -7,7 +7,7 @@ satellite_distance = ol.R_E + 400 # From earth center [km]
 T = 2 * math.pi * math.sqrt(satellite_distance ** 3 / ol.mu) # Orbital period [s]
 
 ###################################
-# Assignment 5 | Algorithms       #
+# Assignment 7 | Algorithms       #
 ###################################
 
 class RigidBody:
@@ -101,7 +101,7 @@ class RigidBody:
         return np.concatenate([vi_, ai, dq, dw])
 
 class Satellite:
-    def __init__(self, q_ib: su.Quaternion, w_bib: np.ndarray, J: np.ndarray, ri: np.ndarray | None=None, vi: np.ndarray | None=None, m: float=1, orbit=None, substeps: int=0) -> None:
+    def __init__(self, q_ib: su.Quaternion, w_bib: np.ndarray, J: np.ndarray, sensors: list[Sensor], JD: float, ri: np.ndarray | None=None, vi: np.ndarray | None=None, m: float=1, orbit=None, substeps: int=0) -> None:
         """
         Satellite class used to represent a satellite.
 
@@ -116,6 +116,7 @@ class Satellite:
         :param m: Satellite mass (default: 1) [kg]
         :param orbit: Orbit propagation object (default: None)
         :param substeps: Number of ADCS substeps per update (default: 0)
+        :param sensors: All attitude sensors connected to the satellite (default: None)
         """
         # Handle None
         if ri is None:
@@ -135,7 +136,7 @@ class Satellite:
 
         # Substep used for ADCS integration
         self.N = substeps + 1 # Add one to make sure it runs at least once
-        self.ADCS = ADCS_PD(1e-5, 2e-4, J)
+        self.ADCS = ADCS_PD(1e-5, 2e-4, J, JD=JD, estimator=TRIAD(), sensors=sensors)
 
     def update(self, t: float, dt: float) -> None:
         """
@@ -199,7 +200,7 @@ class Satellite:
             q_io, w_iio, _ = ol.orbit_frame_from_state(ri, vi)
 
             # Get ADCS torqe based on states
-            self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, np.zeros(3))
+            self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, np.zeros(3))
             tau_u = self.ADCS.get_control()
 
             # Update satellites body with forces
@@ -224,7 +225,7 @@ class Satellite:
             q_io, w_iio, dw_iio = self.get_orbit_frame()
 
             # Get ADCS torqe based on states
-            self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, dw_iio)
+            self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio)
             tau_u = self.ADCS.get_control()
 
             # Calculate orbit force (two body problem)
@@ -236,35 +237,77 @@ class Satellite:
 
 
 ###################################
-# Assignment 5 | Algorithms       #
+# Assignment 7 | Algorithms       #
 ###################################
 
 # noinspection PyPep8Naming
 class ADCS_PD:
-    def __init__(self, k1, k2, J):
+    def __init__(self, k1: float, k2: float, J: np.ndarray, estimator, JD: float, sensors: list[Sensor]) -> None:
         self.k1 = k1
         self.k2 = k2
         self.J = J.copy()
         self.tau = np.zeros(3)
 
-    def update(self, t, q_ib, w_bib, q_io, w_iio, dw_iio):
+
+        # Add sensor from list to its respective class
+        self.sun_sensors = []
+        self.mag_sensor  = None
+        self.gyro_sensor = None
+        self.sensors = sensors # Used for an easy update loop
+
+        for s in sensors:
+            if isinstance(s, FineSunSensor):
+                self.sun_sensors.append(s)
+            elif isinstance(s, Magnetometer):
+                self.mag_sensor = s
+            elif isinstance(s, Gyro):
+                self.gyro_sensor = s
+
+        self.estimator = estimator
+        self.JD = JD
+
+    def update(self, t, dt, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio) -> None:
+
+        # Get refrence vectors
+        Bi = ol.magnetic_field_dipol(ri, self.JD + t / (24.0 * 3600.0))
+        Si = ol.sun_vector(self.JD + t / (24.0 * 3600.0))
+
+        # Update sensors
+        for sensor in self.sensors:
+            sensor.update(t, dt, ri, vi, q_ib, w_bib)
+
+        # Create empty list for estimator
+        M_B = []
+        M_A = []
+
+        # Magnometer
+        M_B.append(su.unit(self.mag_sensor.output(body_frame=True)))
+        M_A.append(su.unit(Bi))
+
+        # Fine sun sensors
+        for sun in self.sun_sensors:
+
+            # Only care about non-zero values
+            measurement = sun.output(body_frame=True)
+            if np.linalg.norm(measurement) == 0:
+                continue
+
+            M_B.append(su.unit(measurement))
+            M_A.append(su.unit(Si))
+
+        # Estimate attitude
+        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
+
         # Quaternion error (desired -> body)
-        q_db = q_io.conjugated() @ q_ib
+        q_db = q_io.conjugated() @ q_ib_estimate
         if q_db[0] < 0:  # Shortest way/direction to rotate
             q_db *= -1
 
         # Angular velocity error (desired -> body)
-        w_db = w_bib - q_db.conjugated().rotate(w_iio)
+        w_db = self.gyro_sensor.output(body_frame=True) - q_db.conjugated().rotate(w_iio)
 
         # Simple PD controller for torque
         self.tau = -self.k1 * q_db[1:] - self.k2 * w_db
-
-        # Important commands. If function does
-        # not print 3 times then the ADCS breaks.
-        # No clue why
-        #print("help")
-        #print("me")
-        #print("plz")
 
     def get_control(self):
         return self.tau
@@ -274,8 +317,33 @@ class ADCS_PD:
 # Assignment 7 | Algorithms       #
 ###################################
 
-class Gyro:
-    def __init__(self, q_bs: su.Quaternion, p_b: np.ndarray=np.zeros(3), z0: np.ndarray=np.zeros(3), sigma_g2: float=0, sigma_bg2: float=0, beta_w0: np.ndarray=np.zeros(3)) -> None:
+# Class serves as the baseline for the other sensor classes
+class Sensor:
+    def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray) -> None:
+        """
+        Update sensor values.
+        :param t: Time [s]
+        :param dt: Time step [s]
+        :param ri: Position vector in ECI frame [km]
+        :param vi: Velocity vector in ECI frame [km/s]
+        :param q_ib: Quaternion rotating body frame to ECI frame
+        :param w_bib: Angular velocity in body frame [rad/s]
+        """
+        pass
+    def output(self, body_frame: bool = False) -> np.ndarray:
+        """
+        Returns the simulated sensor measurement.
+
+        Output can be choosen to either be in sensor frame or
+        body frame by configuring the body_frame parameter.
+
+        :param body_frame: If measurement should be in body frame (default: False)
+        :return: Sensor measurement
+        """
+        pass
+
+class Gyro(Sensor):
+    def __init__(self, q_bs: su.Quaternion, p_b: np.ndarray=np.zeros(3), z0: np.ndarray=np.zeros(3), sigma_g2: float=0.0, sigma_bg2: float=0.0, beta_w0: np.ndarray=np.zeros(3)) -> None:
         """
         Gyro sensor model with additive white noise and time-varying bias drift.
 
@@ -332,9 +400,17 @@ class Gyro:
         :return: Gyro angular velocity measurement [rad/s]
         """
         return self.q_bs.rotate(self.z) if body_frame else self.z
+class Magnetometer(Sensor):
+    def __init__(self, q_bs: su.Quaternion, p_b: np.ndarray=np.zeros(3), z0: np.ndarray=np.zeros(3), sigma_B2: float=0.0, JD: float=0.0) -> None:
+        """
+        Magnetometer sensor model with additive white noise.
 
-class Magnetometer:
-    def __init__(self, q_bs, p_b, z0, sigma_B2, JD):
+        :param q_bs: Quaternion orientation of sensor frame relative to body frame
+        :param p_b: Position vector of sensor relative to body frame origin (default: zero vector) [km]
+        :param z0: Initial measured magnetometer field vector (default: zero vector) [T]
+        :param sigma_B2: Variance of white noise (default: 0)
+        :param JD: Julian Date (days since J2000.0, can include fractional day)
+        """
         # Variance
         self.sigma_B = math.sqrt(sigma_B2)
 
@@ -347,7 +423,16 @@ class Magnetometer:
 
         self.JD = JD
 
-    def update(self, t, dt, ri, vi, q_ib, w_bib):
+    def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray) -> None:
+        """
+        Update sensor values.
+        :param t: Time [s]
+        :param dt: Time step [s]
+        :param ri: Position vector in ECI frame [km]
+        :param vi: Velocity vector in ECI frame [km/s]
+        :param q_ib: Quaternion rotating body frame to ECI frame
+        :param w_bib: Angular velocity in body frame [rad/s]
+        """
         # Noise
         eta_B = np.random.normal(0, self.sigma_B, 3)
 
@@ -361,10 +446,28 @@ class Magnetometer:
         self.z = q_is.conjugated().rotate(B_iE) + eta_B
 
     def output(self, body_frame: bool=False) -> np.ndarray:
-        return self.q_bs.rotate(self.z) if body_frame else self.z
+        """
+        Returns the simulated magnetometer measurement.
 
-class FineSunSensor:
-    def __init__(self, q_bs, p_b, z0, sigma_s2, alpha, JD):
+        Output can be choosen to either be in sensor frame or
+        body frame by configuring the body_frame parameter.
+
+        :param body_frame: If measurement should be in body frame (default: False)
+        :return: Measured magnetometer field vector [T]
+        """
+        return self.q_bs.rotate(self.z) if body_frame else self.z
+class FineSunSensor(Sensor):
+    def __init__(self, q_bs: su.Quaternion, p_b: np.ndarray=np.zeros(3), z0: np.ndarray=np.zeros(3), sigma_s2: float=0.0, alpha: float=math.pi, JD: float=0.0):
+        """
+        Fine sun sensor model with additive white noise.
+
+        :param q_bs: Quaternion orientation of sensor frame relative to body frame
+        :param p_b: Position vector of sensor relative to body frame origin (default: zero vector) [km]
+        :param z0: Initial measured sun direction vector (default: zero vector)
+        :param sigma_s2: Variance of white noise (default: 0)
+        :param alpha: FOV (default: pi) [radians]
+        :param JD: Julian Date (days since J2000.0, can include fractional day)
+        """
         # Variance
         self.sigma_s = math.sqrt(sigma_s2)
 
@@ -380,10 +483,18 @@ class FineSunSensor:
 
         self.JD = JD
 
-    def update(self, t, dt, ri, vi, q_ib, w_bib):
-
+    def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray) -> None:
+        """
+        Update sensor values.
+        :param t: Time [s]
+        :param dt: Time step [s]
+        :param ri: Position vector in ECI frame [km]
+        :param vi: Velocity vector in ECI frame [km/s]
+        :param q_ib: Quaternion rotating body frame to ECI frame
+        :param w_bib: Angular velocity in body frame [rad/s]
+        """
         # Get sun vector and transform from ECI to body frame
-        si = ol.sun_vector(self.JD + t / (24.0 * 3600.0))
+        si = ol.sun_vector(self.JD + t / (24.0 * 3600.0)) # Best would be to calculate this outside class and pass it to all sun sensors
         s_b_sensor = q_ib.conjugated().rotate(si - ri)
 
         # Normilize value
@@ -398,38 +509,92 @@ class FineSunSensor:
             eta_s = np.random.normal(0, self.sigma_s, 3)
             self.z = s_st + eta_s
         else:
-            self.z = 0
+            self.z = np.zeros(3)
 
     def output(self, body_frame: bool=False) -> np.ndarray:
+        """
+        Returns the simulated sun measurement.
+
+        Output can be choosen to either be in sensor frame or
+        body frame by configuring the body_frame parameter.
+
+        :param body_frame: If measurement should be in body frame (default: False)
+        :return: Measured Sun direction vector
+        """
         return self.q_bs.rotate(self.z) if body_frame else self.z
 
-
+# Estimation classes
 class TRIAD:
-    def __init__(self):
-        pass
+    def estimate_attitude(self, M_B: list[np.ndarray], M_A: list[np.ndarray]) -> su.Quaternion:
+        """
+        Attitude estimation using TRIAD's algorithm.
 
-    def update(self, a0, ab, b0, bb):
-        Uo = b0
-        Ub = bb
-        Vo = a0
-        Vb = ab
+        M_B is the body frame vectors and M_A is the reference frame vectors.
 
-        # WH-wha-what's going on-on? https://www.youtube.com/watch?v=k85mRPqvMbE&list=RDk85mRPqvMbE
-        to1 = su.unit(Uo)
-        to2 = su.unit(np.cross(to1, Vo))
-        to3 = su.unit(np.cross(to2, to1))
+        :param M_B: List of vectors in frame B
+        :param M_A: List of vectors in frame A
+        :return: Estimated coordinate transformation from A to B
+        """
+        # Only take the two first vectors from M_A and M_B (Filters out excess sun sensors)
+        # Refrence frame
+        UA = M_A[0]
+        VA = M_A[1]
 
-        To = np.array([to1, to2, to3])
+        # Body frame
+        UB = M_B[0]
+        VB = M_B[1]
 
-        tb1 = su.unit(Ub)
-        tb2 = su.unit(np.cross(tb1, Vb))
-        tb3 = su.unit(np.cross(tb2, tb1))
+        ta1 = su.unit(UA)
+        ta2 = su.unit(np.cross(ta1, VA))
+        ta3 = np.cross(ta2, ta1)
+
+        Ta = np.array([ta1, ta2, ta3])
+
+        tb1 = su.unit(UB)
+        tb2 = su.unit(np.cross(tb1, VB))
+        tb3 = np.cross(tb2, tb1)
 
         Tb = np.array([tb1, tb2, tb3])
 
-
-        return Tb.T @ To
-
+        # Convert rotation matrix to queterion
+        return su.dcm_to_quaternion(Ta.T @ Tb).normalized()
 class Davenport:
-    def __init__(self):
-        pass
+    def estimate_attitude(self, M_B: list[np.ndarray], M_A: list[np.ndarray], weights: list[float] | None=None) -> su.Quaternion:
+        """
+        Attitude estimation using Davenport's algorithm.
+
+        M_B is the body frame vectors and M_A is the reference frame vectors.
+
+        :param M_B: List of vectors in frame B
+        :param M_A: List of vectors in frame A
+        :param weights: Weights for each sensor vector (default: Uniform)
+        :return: Estimated coordinate transformation from A to B
+        """
+        N = len(M_B)
+
+        # If weights are not given then make them uniform
+        if weights is None:
+            weights = np.ones(N) / N
+
+        B = np.zeros((3,3))
+        z = np.zeros(3)
+
+        # Compute B, z
+        for i in range(N):
+            B += weights[i] * np.outer(M_B[i], M_A[i])
+            z += weights[i] * np.cross(M_B[i], M_A[i])
+
+        tr_B = np.trace(B)
+
+        # Davenport K-matrix
+        K = np.zeros((4,4))
+        K[0, 0] = tr_B
+        K[0, 1:] = z
+        K[1:, 0] = z
+        K[1:, 1:] = B + B.T - tr_B * np.eye(3)
+
+        # Get the eigenvectors from K-matrix
+        _, evecs = np.linalg.eigh(K)
+
+        # Construct rotation quatarion from eigenvectors
+        return su.Quaternion(evecs[:, -1]).normalized()
