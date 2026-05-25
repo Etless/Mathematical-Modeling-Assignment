@@ -11,7 +11,7 @@ class ScenarioAssignment1(sim.BaseScenario):
     def __init__(self, file_path: str):
 
         # Load TLE file and get all elements assigned to it
-        epoch, self.e, rev, self.Me, self.omega, self.i, self.w = ol.orbit_params_from_tle_params(file_path, debug=True)
+        epoch, self.e, rev, self.Me, self.omega, self.i, self.w, _, _ = ol.orbit_params_from_tle_params(file_path, debug=True)
 
         ### Convert arguments to values ###
         JD = ol.epoch_to_julian_date(epoch)
