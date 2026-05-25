@@ -1,12 +1,13 @@
 import numpy as np
 import simutils as su
 import orbit_lib as ol
-import sat_lib as sl
 import simulator as sim
 import math
 
 import plotter as pl
 
+satellite_distance = ol.R_E + 400 # From earth center [km]
+T = 2 * math.pi * math.sqrt(satellite_distance ** 3 / ol.mu) # Orbital period [s]
 
 # Extends upon the Base Scenario template from simulator
 class ScenarioAssignment1(sim.BaseScenario):
@@ -27,10 +28,10 @@ class ScenarioAssignment1(sim.BaseScenario):
     def init(self, t):
 
         # Orbit variables [Satellite]
-        self.r = sl.satellite_distance # Distance from earth center
+        self.r = satellite_distance # Distance from earth center
 
         self.theta_offset = 0 # Offset to the orbit angle
-        self.theta = self.theta_offset + 2 * math.pi / sl.T * t # Orbit angle bias + time angle
+        self.theta = self.theta_offset + 2 * math.pi / T * t # Orbit angle bias + time angle
 
         # Satellite rotation
         self.q = su.Quaternion()
@@ -47,7 +48,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def update(self, t, dt):
         # Orbit angle calculated from time step or time
-        self.theta += 2 * math.pi / sl.T * dt
+        self.theta += 2 * math.pi / T * dt
         #self.theta = self.theta_offset + 2 * math.pi / sl.T * t
 
         # Calculate earth's rotation from time step
