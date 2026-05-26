@@ -3,7 +3,7 @@ import datetime
 
 import numpy as np
 import simutils as su
-import sat_lib as sl
+import sat_lib_assign7 as sl
 import orbit_lib as ol
 import simulator as sim
 
@@ -116,7 +116,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
     def post_process(self, t, dt):
         # Not needed just for fun
-        file = su.log_pos("assignment6_ground_track", self.ground_track_plot)
+        file = su.log_pos("assignment7_ground_track", self.ground_track_plot)
         self.ground_track_plot = None  # Clear the data after its saved
         pl.ground_tracking(file, "3DModels/earth_8k.jpg")
 
