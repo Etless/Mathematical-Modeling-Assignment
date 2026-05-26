@@ -427,7 +427,10 @@ class Satellite:
         # Substep used for ADCS integration
         self.N = substeps + 1 # Add one to make sure it runs at least once
         #self.ADCS = ADCS_PD(2e-3, 3e-2, J, JD=JD, estimator=estimator, sensors=sensors)
-        self.ADCS = ADCS_PD(0.05, 0.5, J, JD=JD, estimator=estimator, sensors=sensors)
+
+        # The two different ADCS used for assignment 8
+        #self.ADCS = ADCS_PD(0.05, 0.5, J, JD=JD, estimator=estimator, sensors=sensors)
+        self.ADCS = ADCS_SM(0.05, 0.1, 0.02, J, JD=JD, estimator=estimator, sensors=sensors)
 
     def update(self, t: float, dt: float) -> None:
         """
@@ -651,22 +654,25 @@ class ADCS_PD:
         return self.tau
 
 
+# TODO: Add better comments here
 # noinspection PyPep8Naming
 class ADCS_SM:
-    def __init__(self, k1: float, k2: float, J: np.ndarray, estimator: AttitudeEstimator, JD: float, sensors: list[Sensor]) -> None:
+    def __init__(self, k1: float, k: float, eps: float, J: np.ndarray, estimator: AttitudeEstimator, JD: float, sensors: list[Sensor]) -> None:
         """
         Sliding Mode ADCS controller.
 
-        :param k1: Proportional gain
-        :param k2: Derivative gain
+        :param k1:
+        :param k:
+        :param eps:
         :param J: Inertia matrix
         :param estimator: Attitude estimator (TRIAD, Davenport, etc.)
         :param JD: Julian Date (days since J2000.0, can include fractional day)
         :param sensors: List of sensor objects
         """
         # Coeficence varaibles
+        self.eps = eps
         self.k1 = k1
-        self.k2 = k2
+        self.k = k
 
         self.J = J.copy()
 
@@ -747,14 +753,19 @@ class ADCS_SM:
 
         # Orbit rates (desired -> body)
         w_iob  = q_db.conjugated().rotate(w_iio)
-        dw_iob = q_db.conjugated().rotate(dw_iio)
 
         # Angular velocity error (desired -> body)
         w_db = w_bib_estimate - w_iob
 
-        # PD controller for torque
+        dw_iob = q_db.conjugated().rotate(dw_iio) + np.cross(w_iob, w_db)
+
+        s = w_db + 2.0 * self.k1 * q_db[1:]
+        dq_v = q_db[0] * w_db + np.cross(q_db[1:], w_db)
+        sat_s = np.clip(s / self.eps, a_min=-1.0, a_max=1.0)
+
+
         self.tau = (np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
-            self.J @ (dw_iob + np.cross(w_iob, w_db) - self.k1 * q_db[1:] - self.k2 * w_db)
+            self.J @ (dw_iob - self.k1 * dq_v - self.k * sat_s)
         )
 
     def get_control(self) -> np.ndarray:

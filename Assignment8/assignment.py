@@ -117,10 +117,11 @@ class ScenarioAssignment1(sim.BaseScenario):
         ]
 
     def post_process(self, t, dt):
+        pass
         # Not needed just for fun
-        file = su.log_pos("assignment8_ground_track", self.ground_track_plot)
-        self.ground_track_plot = None  # Clear the data after its saved
-        pl.ground_tracking(file, "3DModels/earth_8k.jpg")
+        #file = su.log_pos("assignment8_ground_track", self.ground_track_plot)
+        #self.ground_track_plot = None  # Clear the data after its saved
+        #pl.ground_tracking(file, "3DModels/earth_8k.jpg")
 
 
 def main():
