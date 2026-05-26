@@ -960,3 +960,29 @@ def sun_vector(JD: float, AU: float=149597870.0) -> np.ndarray:
     ])
 
     return si
+
+
+###################################
+# Assignment 8 | Algorithms       #
+###################################
+
+def gravity_gradient(ri: np.ndarray, q_ib: su.Quaternion, J: np.ndarray, u: float=mu) -> np.ndarray:
+    """
+    Calculate the gravity-gradient torque acting on the spacecraft.
+    :param ri: Satellite position vector in ECI frame [km]
+    :param q_ib: Quaternion rotating body frame to ECI frame
+    :param J: Inertia matrix
+    :param u: Standard gravitational parameter (default: Earth's μ) [km**3/s**2]
+    :return: Gravity-gradient torque vector
+    """
+    rb = q_ib.conjugated().rotate(ri)
+    r  = np.linalg.norm(ri).astype(float)
+    return 3.0 * u * np.cross(rb, J @ rb) / r ** 5
+
+def time_to_solar_day(t: float) -> float:
+    """
+    Converting time in seconds to senconds in a solar day.
+    :param t: Time [s]
+    :return: Seconds in a solar day
+    """
+    return t / (24 * 3600)

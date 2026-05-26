@@ -127,7 +127,7 @@ class Magnetometer(Sensor):
         eta_B = np.random.normal(0, self.sigma_B, 3)
 
         # Get the magnetix flux density
-        B_iE = ol.magnetic_field_dipol(ri, self.JD + t / (24.0 * 3600.0))
+        B_iE = ol.magnetic_field_dipol(ri, self.JD + ol.time_to_solar_day(t))
 
         # Internal frame -> body frame -> sensor frame
         q_is = q_ib @ self.q_bs
@@ -184,7 +184,7 @@ class FineSunSensor(Sensor):
         :param w_bib: Angular velocity in body frame [rad/s]
         """
         # Get sun vector and transform from ECI to body frame
-        si = ol.sun_vector(self.JD + t / (24.0 * 3600.0)) # Best would be to calculate this outside class and pass it to all sun sensors
+        si = ol.sun_vector(self.JD + ol.time_to_solar_day(t)) # Best would be to calculate this outside class and pass it to all sun sensors
         s_b_sensor = q_ib.conjugated().rotate(si - ri)
 
         # Normilize value
@@ -426,7 +426,8 @@ class Satellite:
 
         # Substep used for ADCS integration
         self.N = substeps + 1 # Add one to make sure it runs at least once
-        self.ADCS = ADCS_PD(1e-5, 2e-4, J, JD=JD, estimator=estimator, sensors=sensors)
+        #self.ADCS = ADCS_PD(2e-3, 3e-2, J, JD=JD, estimator=estimator, sensors=sensors)
+        self.ADCS = ADCS_PD(0.05, 0.5, J, JD=JD, estimator=estimator, sensors=sensors)
 
     def update(self, t: float, dt: float) -> None:
         """
@@ -493,8 +494,11 @@ class Satellite:
             self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, np.zeros(3))
             tau_u = self.ADCS.get_control()
 
+            tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J) # Gravity-Gradient
+            tau_d += self.body.J @ np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
+
             # Update satellites body with forces
-            self.body.update(t, dt_sub, np.zeros(3), tau_u)
+            self.body.update(t, dt_sub, np.zeros(3), tau_u + tau_d)
             t += dt_sub
 
         # Manualy update rigid body position and velocity from orbit
@@ -518,16 +522,19 @@ class Satellite:
             self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio)
             tau_u = self.ADCS.get_control()
 
+            tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J)  # Gravity-Gradient
+            tau_d += self.body.J @ np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances
+
             # Calculate orbit force (two body problem)
             f = self.body.m * (-ol.mu / np.linalg.norm(ri) ** 3 * ri)
 
             # Update satellites body with forces
-            self.body.update(t, dt_sub, f, tau_u)
+            self.body.update(t, dt_sub, f, tau_u + tau_d)
             t += dt_sub
 
 
 ###################################
-# Assignment 7 | ADCS             #
+# Assignment 8 | ADCS             #
 ###################################
 
 # noinspection PyPep8Naming
@@ -538,7 +545,7 @@ class ADCS_PD:
 
         :param k1: Proportional gain
         :param k2: Derivative gain
-        :param J: Inertia matrix (deprecated)
+        :param J: Inertia matrix
         :param estimator: Attitude estimator (TRIAD, Davenport, etc.)
         :param JD: Julian Date (days since J2000.0, can include fractional day)
         :param sensors: List of sensor objects
@@ -556,7 +563,6 @@ class ADCS_PD:
         self.estimator = estimator
         self.JD = JD
 
-
         # Add sensor from list to its respective class
         self.sun_sensors = []
         self.mag_sensor  = None
@@ -566,8 +572,10 @@ class ADCS_PD:
         for s in sensors:
             if isinstance(s, FineSunSensor):
                 self.sun_sensors.append(s)
+
             elif isinstance(s, Magnetometer):
                 self.mag_sensor = s
+
             elif isinstance(s, Gyro):
                 self.gyro_sensor = s
 
@@ -585,9 +593,125 @@ class ADCS_PD:
         :param w_iio: Desired angular velocity [rad/s]
         :param dw_iio: Desired angular acceleration (default: zero) [rad/s**2]
         """
+        ts = ol.time_to_solar_day(t) # Seconds in solar day
+
         # Get refrence vectors
-        Bi = ol.magnetic_field_dipol(ri, self.JD + t / (24.0 * 3600.0))
-        Si = ol.sun_vector(self.JD + t / (24.0 * 3600.0))
+        Bi = ol.magnetic_field_dipol(ri, self.JD + ts)
+        Si = ol.sun_vector(self.JD + ts)
+
+        # Update sensors
+        for sensor in self.sensors:
+            sensor.update(t, dt, ri, vi, q_ib, w_bib)
+
+        # Create empty list for estimator
+        M_B = []
+        M_A = []
+
+        # Magnometer
+        M_B.append(su.unit(self.mag_sensor.output(body_frame=True)))
+        M_A.append(su.unit(Bi))
+
+        # Fine sun sensors
+        for sun in self.sun_sensors:
+
+            # Only care about non-zero values
+            measurement = sun.output(body_frame=True)
+            if np.linalg.norm(measurement) < 1e-12:
+                continue
+
+            M_B.append(su.unit(measurement))
+            M_A.append(su.unit(Si))
+
+        # Estimate attitude
+        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
+        w_bib_estimate = self.gyro_sensor.output(body_frame=True)
+
+        # Quaternion error (desired -> body)
+        q_db = q_io.conjugated() @ q_ib_estimate
+        if q_db[0] < 0:  # Shortest way/direction to rotate
+            q_db *= -1
+
+        # Orbit rates (desired -> body)
+        w_iob  = q_db.conjugated().rotate(w_iio)
+        dw_iob = q_db.conjugated().rotate(dw_iio)
+
+        # Angular velocity error (desired -> body)
+        w_db = w_bib_estimate - w_iob
+
+        # PD controller for torque
+        self.tau = (np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
+            self.J @ (dw_iob + np.cross(w_iob, w_db) - self.k1 * q_db[1:] - self.k2 * w_db)
+        )
+
+    def get_control(self) -> np.ndarray:
+        """
+        Returns the current control torque computed by the ADCS controller.
+        :return: Control torque vector in body frame [N*m]
+        """
+        return self.tau
+
+
+# noinspection PyPep8Naming
+class ADCS_SM:
+    def __init__(self, k1: float, k2: float, J: np.ndarray, estimator: AttitudeEstimator, JD: float, sensors: list[Sensor]) -> None:
+        """
+        Sliding Mode ADCS controller.
+
+        :param k1: Proportional gain
+        :param k2: Derivative gain
+        :param J: Inertia matrix
+        :param estimator: Attitude estimator (TRIAD, Davenport, etc.)
+        :param JD: Julian Date (days since J2000.0, can include fractional day)
+        :param sensors: List of sensor objects
+        """
+        # Coeficence varaibles
+        self.k1 = k1
+        self.k2 = k2
+
+        self.J = J.copy()
+
+        # Torque
+        self.tau = np.zeros(3)
+
+        # Estimator class used for attitude estimation
+        self.estimator = estimator
+        self.JD = JD
+
+        # Add sensor from list to its respective class
+        self.sun_sensors = []
+        self.mag_sensor  = None
+        self.gyro_sensor = None
+        self.sensors = sensors # Used for an easy update loop
+
+        for s in sensors:
+            if isinstance(s, FineSunSensor):
+                self.sun_sensors.append(s)
+
+            elif isinstance(s, Magnetometer):
+                self.mag_sensor = s
+
+            elif isinstance(s, Gyro):
+                self.gyro_sensor = s
+
+    def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray, q_io: su.Quaternion, w_iio: np.ndarray, dw_iio: np.ndarray=np.zeros(3)) -> None:
+        """
+        Performs one ADCS control update iteration.
+
+        :param t: Time [s]
+        :param dt: Time step [s]
+        :param ri: Position vector in ECI frame [km]
+        :param vi: Velocity vector in ECI frame [km/s]
+        :param q_ib: Quaternion rotating body frame to ECI frame
+        :param w_bib: Angular velocity in body frame [rad/s]
+        :param q_io: Desired attitude quaternion
+        :param w_iio: Desired angular velocity [rad/s]
+        :param dw_iio: Desired angular acceleration (default: zero) [rad/s**2]
+        """
+        ts = ol.time_to_solar_day(t) # Seconds in solar day
+
+        # Get refrence vectors
+        Bi = ol.magnetic_field_dipol(ri, self.JD + ts)
+        Si = ol.sun_vector(self.JD + ts)
 
         # Update sensors
         for sensor in self.sensors:
@@ -614,17 +738,24 @@ class ADCS_PD:
 
         # Estimate attitude
         q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
+        w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
         # Quaternion error (desired -> body)
         q_db = q_io.conjugated() @ q_ib_estimate
         if q_db[0] < 0:  # Shortest way/direction to rotate
             q_db *= -1
 
-        # Angular velocity error (desired -> body)
-        w_db = self.gyro_sensor.output(body_frame=True) - q_db.conjugated().rotate(w_iio)
+        # Orbit rates (desired -> body)
+        w_iob  = q_db.conjugated().rotate(w_iio)
+        dw_iob = q_db.conjugated().rotate(dw_iio)
 
-        # Simple PD controller for torque
-        self.tau = -self.k1 * q_db[1:] - self.k2 * w_db
+        # Angular velocity error (desired -> body)
+        w_db = w_bib_estimate - w_iob
+
+        # PD controller for torque
+        self.tau = (np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
+            self.J @ (dw_iob + np.cross(w_iob, w_db) - self.k1 * q_db[1:] - self.k2 * w_db)
+        )
 
     def get_control(self) -> np.ndarray:
         """
