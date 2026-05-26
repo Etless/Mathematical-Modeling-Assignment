@@ -82,7 +82,7 @@ def ground_tracking(file_path: str, img_path: str):
         print(f"The time interval is not a full number and therefor will contain deviations!!!.")
 
     N = int(N)
-    ax.scatter(lons[::N], lats[::N], color='red', s=10)
+    #ax.scatter(lons[::N], lats[::N], color='red', s=10)
 
     plt.show()
 

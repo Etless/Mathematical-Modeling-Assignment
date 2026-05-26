@@ -115,7 +115,7 @@ def semi_major_axis_from_mean_motion(n: float, u: float=mu) -> float:
     return (u/n**2) ** (1/3) # Semi-major axis
 
 # TLE functions
-def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str, float, float, float, float, float, float, float, float]:
+def orbit_params_from_tle_params(tle_path: str, index: int=0,debug: bool=False) -> tuple[str, float, float, float, float, float, float, float, float]:
     # noinspection SpellCheckingInspection
     """
     Extracts orbital parameters from TLE file.
@@ -139,8 +139,8 @@ def orbit_params_from_tle_params(tle_path: str, debug: bool=False) -> tuple[str,
     if tle_data is None or len(tle_data) == 0:
         raise ValueError("No valid TLE data found in file")
 
-    # Only care about the first satellite
-    tle_data = tle_data[0]
+    # Pick one satellite
+    tle_data = tle_data[index]
     if debug: print(f"TLE Name: '{tle_data[0]}' Data:{tle_data[1:]}")
 
     epoch = tle_data[1]          # Epoch                [int|int|float]
