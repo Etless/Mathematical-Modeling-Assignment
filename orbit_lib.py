@@ -120,6 +120,7 @@ def orbit_params_from_tle_params(tle_path: str, index: int=0,debug: bool=False) 
     """
     Extracts orbital parameters from TLE file.
     :param tle_path: TLE file path
+    :param index: Satellite index (default: 0)
     :param debug: If debug output should be written (default: False)
     :return: Tuple of orbital parameters extracted from TLE:
              - epoch (YYDDD.DDDDDDDD) [str]
@@ -701,7 +702,6 @@ class OrbitClassic:
 
         return orbit_frame_from_state(self._ri, self._vi)
 
-
 class OrbitTLE:
     def __init__(self, n: float, e: float, Me: float, omega: float, i: float, w: float) -> None:
         self.n = n
@@ -786,6 +786,11 @@ class OrbitPKepler:
         self.Me    = angle_wrap_radians(self.Me)
 
         self._state_valid = False
+    def propagate_timestep(self, dt: float, steps: int) -> None:
+        # Iterate delta time trough steps
+        sub_dt = dt / float(steps)
+        for _ in range(steps):
+            self.propagate(sub_dt)
 
     def get_params(self) -> tuple[float, float, float, float, float, float, float, float]:
         return self.a, self.e, self.Me, self.omega, self.i, self.w, self.dn, self.d2n

@@ -1,5 +1,4 @@
 import math
-import datetime
 
 import numpy as np
 import simutils as su
@@ -9,120 +8,200 @@ import Assignment9.simulator as sim
 
 import plotter as pl
 
-# Extends upon the Base Scenario template from simulator
+##############################
+# Assignment 9 Part 1        #
+##############################
 
-##############################
-# Assignment 9 Part 1 Task 2 #
-##############################
+def PKepler_from_tle_params(file_path: str, index: int=0, debug: bool=False) -> tuple[ol.OrbitPKepler, float]:
+    """
+    Returns an orbit PKepler class from a TLE file.
+    :param file_path: file path of the TLE file
+    :param index: Satellite index of the TLE file (default: 0)
+    :param debug: If debug output should be written (default: False)
+    :return: OrbitPKepler class
+    """
+    # Load TLE file and get all elements assigned to it
+    epoch, e, rev, Me, omega, i, w, dn, d2n = ol.orbit_params_from_tle_params(file_path, debug=debug, index=index)
+
+    # Orbit params
+    n = 2 * math.pi / ol.orbital_period_from_revs_per_day(rev)
+    a = ol.semi_major_axis_from_mean_motion(n)
+
+    JD = ol.epoch_to_julian_date(epoch)
+
+    # Return orbit class
+    return ol.OrbitPKepler(a, e, Me, omega, i, w, dn, d2n), JD
+
 
 class Part1Task2(sim.BaseScenario):
     def __init__(self, file_path):
-
+        self.ri = None
+        self.q = None
         self.theta_E = None
-        self.sat = None
-        self.q  = None
-        self.q_E = None
-        self.tau = None
 
-        # Load TLE file and get all elements assigned to it
-        epoch, e, rev, Me, omega, i, w, dn, d2n = ol.orbit_params_from_tle_params(file_path, debug=True, index=0)
+        self.orbit2_plot = None
+        self.orbit3_plot = None
+        self.orbit_difference_plot = None
 
-        ### Convert arguments to values ###
-        self.JD = ol.epoch_to_julian_date(epoch)
-        self.theta_G0 = ol.sidereal_angle(self.JD)
+        # Orbit to look 9 years in the future
+        self.orbit1, self.JD1 = PKepler_from_tle_params(file_path, index=0, debug=False) # HST1
 
-        # Julian Date information
-        print(f"Julian Date: {self.JD}")
-        print(f"Sidereal Angle: {self.theta_G0} [{ol.rad2deg(self.theta_G0):.2f}]")
-
-        print(ol.julian_date_to_iso(self.JD))
-
-        # Orbit params
-        T = ol.orbital_period_from_revs_per_day(rev)
-        n = 2 * math.pi / T
-
-        a = ol.semi_major_axis_from_mean_motion(n)
-        self.orbit = ol.OrbitPKepler(a, e, Me, omega, i, w, dn, d2n)
-
-        #self.r0, self.v0 = ol.state_from_tle_params(e, n, Me, omega, i, w)  # Satellite position
-
-        self.ground_track_plot = None
+        # Orbit of current year
+        self.orbit2, self.JD2 = PKepler_from_tle_params(file_path, index=0, debug=False) # HST1
+        # Orbit 9 years ago to be propigated to current year
+        self.orbit3, self.JD3 = PKepler_from_tle_params(file_path, index=1, debug=False) # HST2
 
     def init(self, t):
-        q0 = su.Quaternion([1, 0, 0, 0])
-        w0 = np.array([0, 0, 0])
-        J = np.array([
-            [ 0.00146519,  0.00001703, -0.00000633],
-            [ 0.00001703,  0.00151512, -0.00001598],
-            [-0.00000633, -0.00001598,  0.00146333],
-        ])
 
+        print("Initial ISO Time:")
+        print("Orbit 1:", ol.julian_date_to_iso(self.JD1))
+        print("Orbit 2:", ol.julian_date_to_iso(self.JD2))
+        print("Orbit 3:", ol.julian_date_to_iso(self.JD3))
 
+        # Calculate delta time between orbit2 (HST1) and orbit3 (HST2)
+        dt_23 = (24.0 * 3600.0) * (self.JD2 - self.JD3)
 
-        # Earth rotation variable
-        self.theta_E = self.theta_G0  # Offset to the rotation
-        temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
-        self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
+        # Calculate delta time for orbit1 (HST1) to propigate 9 years in the future
+        dt_1  = 9.0 * 365.0 * (24.0 * 3600.0)
 
-        # Satellite varaibles
-        cos_x = math.cos(math.pi / 4)
-        sin_x = math.sin(math.pi / 4)
+        substeps = 100000 # Number of substeps to perform the propagation
 
-        # Create a sun sensor for each side of the satellite
-        sun_sensors = [
-            sl.FineSunSensor(su.Quaternion([cos_x,      0,  sin_x, 0]), np.array([ 0.1,  0.0,  0.0]), np.zeros(3), 0.2, math.pi, self.JD),
-            sl.FineSunSensor(su.Quaternion([cos_x,      0, -sin_x, 0]), np.array([-0.1,  0.0,  0.0]), np.zeros(3), 0.2, math.pi, self.JD),
-            sl.FineSunSensor(su.Quaternion([cos_x, -sin_x,      0, 0]), np.array([ 0.0,  0.1,  0.0]), np.zeros(3), 0.2, math.pi, self.JD),
-            sl.FineSunSensor(su.Quaternion([cos_x,  sin_x,      0, 0]), np.array([ 0.0, -0.1,  0.0]), np.zeros(3), 0.2, math.pi, self.JD),
-            sl.FineSunSensor(su.Quaternion([    1,      0,      0, 0]), np.array([ 0.0,  0.0,  0.1]), np.zeros(3), 0.2, math.pi, self.JD),
-            sl.FineSunSensor(su.Quaternion([    0,      1,      0, 0]), np.array([ 0.0,  0.0, -0.1]), np.zeros(3), 0.2, math.pi, self.JD)
-        ]
+        # Propagate orbits to target date
+        self.orbit1.propagate_timestep(dt_1, substeps)
+        self.orbit3.propagate_timestep(dt_23, substeps)
 
-        # Add a gyro & magnetometer sensor to the satellite
-        gyro_sensor = sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.array([0, 0, 0]), np.zeros(3), 0.1E-5, 0)
-        mag_sensor = sl.Magnetometer(su.Quaternion([1, 0, 0, 0]), np.array([0, 0, 0]), np.zeros(3), 0.4E-20, self.JD)
+        print("\nUpdated ISO Time:")
+        print("Orbit 1:", ol.julian_date_to_iso(self.JD1 + dt_1 / (24.0 * 3600.0))) # Gives dubious year error but is only for the conversion to iso
+        print("Orbit 2:", ol.julian_date_to_iso(self.JD2))
+        print("Orbit 3:", ol.julian_date_to_iso(self.JD3 + dt_23 / (24.0 * 3600.0)))
 
-        self.sat = sl.Satellite(q0, w0, J, substeps=0, orbit=self.orbit, JD=self.JD, sensors=[gyro_sensor, mag_sensor, *sun_sensors])
-        #self.sat = sl.Satellite(q0, w0, J, ri=self.r0, vi=self.v0, substeps=10, JD=JD_now, sensors=[gyro_sensor, mag_sensor, *sun_sensors]) # Tests the update_with_dynamics function
+        self.ri, vi = self.orbit1.get_state()
+        self.q, _, _ = self.orbit1.get_orbit_frame()
 
-        # FIXME: Use the updated ground track (earth_grid)
-        # Not needed just for fun
-        ri, _, _, _ = self.sat.get_state()
-        lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
-        # lon, lat = ol.ground_track(self.ri, self.theta_E)  # Ground track
-        self.ground_track_plot = np.concatenate(([t], [lon, lat]))
+        # !!! Not needed just to make simultaion look more realistic
+        self.theta_E = ol.sidereal_angle(self.JD1 + dt_1 / (24.0 * 3600.0)) # Rotation of earth at updated orbit1 (HST1)
+
+        # Used to plot the difference between orbit2 and orbit3
+        ri2, _ = self.orbit2.get_state()
+        r2 = np.linalg.norm(ri2)
+        ri3, _ = self.orbit3.get_state()
+        r3 = np.linalg.norm(ri3)
+        self.orbit2_plot = np.concatenate(([t], [*ri2, r2]))
+        self.orbit3_plot = np.concatenate(([t], [*ri3, r3]))
+
+        r_diff = r2 - r3
+        self.orbit_difference_plot = np.concatenate(([t], [r_diff]))
+
+        a, e, Me, omega, i, w, dn, d2n = self.orbit1.get_params()
+
+        E = ol.eccentric_anomaly_from_mean_anomaly(Me, e)
+        theta = ol.true_anomaly_from_eccentric_anomaly(E, e)
+
+        n = 2 * math.pi / ol.orbital_period_from_semi_major_axis(a)
+
+        # Note: Underlying functions use the more standard latitude = phi and longitude = lam
+        lam, phi, height = ol.geodetic_from_xyz(self.ri)
+
+        q_io, w_iio, dw_iio = ol.orbit_frame_from_state(self.ri, vi)
+
+        h, _, _, _, _, _ = ol.orbit_params_from_state(self.ri, vi)
+
+        print(" === === Assignment 9 Part 1 Task 2 === ===")
+        print("Specific Relative Angular Momentum : h      ", h)
+        print("True Anomaly                       : θ      ", ol.rad2deg(ol.angle_wrap_radians(theta)))
+        print("Eccentric Anomaly                  : E      ", ol.rad2deg(ol.angle_wrap_radians(E)))
+        print("Semi-Major Axis                    : a      ", a)
+        print("Mean Motion                        : n      ", n)
+        print("Derivative of Mean Motion          : dn     ", dn)
+        print("Second Derivative of Mean Motion   : d2n    ", d2n)
+        print("Position                           : ri     ", self.ri)
+        print("Velocity                           : vi     ", vi)
+        print("Julian Date                        : JD     ", self.JD1 + dt_1 / (24.0 * 3600.0))
+        print("Sidereal Angle                     : θG0    ", ol.rad2deg(ol.angle_wrap_radians(self.theta_E)))
+        print("Orbit frame                        : q_io   ", q_io[:])
+        print("Orbit frame Angular Velocity       : w_i_io ", w_iio)
+        print("Orbit frame Angular Acceleration   : dw_i_io", dw_iio)
+        print("Geodetic Latitude                  : λ′     ", lam)
+        print("Geodetic/Geocentric longitude      : ϕ      ", phi)
+        print("Altitude                           : h      ", height)
 
     def update(self, t, dt):
-        self.sat.update(t, dt)
+
+        # Propagate the orbit
+        self.orbit1.propagate(dt)
+        self.orbit2.propagate(dt)
+        self.orbit3.propagate(dt)
+
+        # Get states from orbit1
+        self.ri, _ = self.orbit1.get_state()
+        self.q, _, _ = self.orbit1.get_orbit_frame()
 
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
-        temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
-        self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
-        # Not needed just for fun
-        ri, _, _, _ = self.sat.get_state()
-        lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
-        # lon, lat = ol.ground_track(self.ri, self.theta_E)  # Ground track
-        self.ground_track_plot = np.vstack((self.ground_track_plot, np.concatenate(([t], [lon, lat]))))
+        # Used to plot the difference between orbit2 and orbit3
+        ri2, _ = self.orbit2.get_state()
+        r2 = np.linalg.norm(ri2)
+        ri3, _ = self.orbit3.get_state()
+        r3 = np.linalg.norm(ri3)
+        self.orbit2_plot = np.vstack((self.orbit2_plot, np.concatenate(([t], [*ri2, r2]))))
+        self.orbit3_plot = np.vstack((self.orbit3_plot, np.concatenate(([t], [*ri3, r3]))))
+
+        r_diff = r2 - r3
+        self.orbit_difference_plot = np.vstack((self.orbit_difference_plot, np.concatenate(([t], [r_diff]))))
 
     def get(self):
-        ri, _, q, _ = self.sat.get_state()
+        temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
+        q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
         return [
-            ['satellite', ri, q],
-            ['body_frame', ri, q],
-            ['earth', np.zeros(3), self.q_E],
-            ['ECEF frame', np.zeros(3), self.q_E],
+            ['satellite', self.ri, self.q],
+            ['body_frame', self.ri, self.q],
+            ['earth', np.zeros(3), q_E],
+            ['ECEF frame', np.zeros(3), q_E],
             ['ECI frame', np.zeros(3), su.Quaternion()]
         ]
 
     def post_process(self, t, dt):
+        file = su.log_pos("assignment9_orbit2", self.orbit2_plot)
+        self.orbit2_plot = None  # Clear the data after its saved
+        pl.line_plot(file, labels=["X", "Y", "Z", "R"], x_axis="Time [s]", y_axis="Height [km]", titel="Orbit height of HST1", linestyle=["-", "-", "-", "--"])
 
-        # Not needed just for fun
-        file = su.log_pos("assignment9_ground_track", self.ground_track_plot)
-        self.ground_track_plot = None  # Clear the data after its saved
-        pl.ground_tracking(file, "3DModels/earth_8k.jpg")
+        file = su.log_pos("assignment9_orbit3", self.orbit3_plot)
+        self.orbit3_plot = None  # Clear the data after its saved
+        pl.line_plot(file, labels=["X", "Y", "Z", "R"], x_axis="Time [s]", y_axis="Height [km]", titel="Orbit height of HST2", linestyle=["-", "-", "-", "--"])
+
+        file = su.log_pos("assignment9_orbit_difference", self.orbit_difference_plot)
+        self.orbit_difference_plot = None  # Clear the data after its saved
+        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Difference [km]", titel="Differenece in height")
+
+class Part2Task1(sim.BaseScenario):
+    def __init__(self, file_path):
+        pass
+
+    def init(self, t):
+        q_ib = su.Quaternion([1, 0, 0, 0])
+        w_bib = np.array([0.3, -0.1, 2]) * 1E-3
+        q_id = su.Quaternion([0.5, 0.5, 0.5, 0.5])
+        w_did = np.zeros(3)
+        dw_did = np.zeros(3)
+
+        self.sat = sl.Satellite(q_ib, w_bib, J, None, None, None, None, 1,)
+
+    def update(self, t, dt):
+        pass
+
+    def get(self):
+        return [
+            ['satellite', self.ri, self.q],
+            ['body_frame', self.ri, self.q],
+            ['earth', np.zeros(3), q_E],
+            ['ECEF frame', np.zeros(3), q_E],
+            ['ECI frame', np.zeros(3), su.Quaternion()]
+        ]
+
+    def post_process(self, t, dt):
+        pass
 
 
 def main():
@@ -135,7 +214,7 @@ def main():
   # Load TLE file and get all elements assigned to it
   epoch, e, rev, Me, omega, i, w, dn, d2n = ol.orbit_params_from_tle_params(file_path, debug=False, index=0)
 
-  E    = ol.eccentric_anomaly_from_mean_anomaly(Me, e)
+  E     = ol.eccentric_anomaly_from_mean_anomaly(Me, e)
   theta = ol.true_anomaly_from_eccentric_anomaly(E, e)
 
   JD = ol.epoch_to_julian_date(epoch)
@@ -176,8 +255,12 @@ def main():
 
   # Do Part 1 Task 2
   scenario = Part1Task2(file_path)
-  sim_config = {'t_0': 0, 't_e': 9 * 365 * 24 * 60 * 60, 't_step': 10000, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': False}
+  T = ol.orbital_period_from_revs_per_day(rev) # Assume the other orbits are the same as this
+  sim_config = {'t_0': 0, 't_e': T, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
   sim.create_and_start_simulation(sim_config,scenario)
+
+  # Do Part 2 Task 1
+
 
 if __name__ == "__main__":
     main()

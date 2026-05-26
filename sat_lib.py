@@ -213,6 +213,32 @@ class FineSunSensor(Sensor):
         """
         return self.q_bs.rotate(self.z) if body_frame else self.z
 
+class StarTracker(Sensor):
+    def __init__(self, q_bs: su.Quaternion, z0: su.Quaternion, p_b: np.ndarray=np.zeros(3), sigma_s2: float=0.0, u: float=ol.mu):
+        # Variance
+        self.sigma_s = math.sqrt(sigma_s2)
+
+        # Sensor position and orientation
+        self.p_b = p_b
+        self.q_bs = q_bs
+
+        # Output
+        self.z = z0
+
+        self.u = u
+
+    def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray) -> None:
+        theta = np.random.normal(self.u, self.sigma_s)
+        x, y = np.random.rand(2)
+        a = np.arccos(1 - 2 * x)
+        b = 2 * np.pi * y
+        u = np.array([np.cos(b) * np.sin(a), np.sin(b) * np.sin(a), np.cos(a)])
+        q_e = su.Quaternion(theta, u)
+        self.z = q_ib @ self.q_bs @ q_e
+
+    def output(self, body_frame: bool=False) -> np.ndarray:
+        return self.q_bs.rotate(self.z) if body_frame else self.z
+
 # Estimation classes
 class AttitudeEstimator:
     def estimate_attitude(self, M_B: list[np.ndarray], M_A: list[np.ndarray]) -> su.Quaternion:

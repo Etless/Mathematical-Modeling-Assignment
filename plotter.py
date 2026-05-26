@@ -6,17 +6,27 @@ import matplotlib.image as image
 from PIL import Image
 
 
-def line_plot(file_path, labels=None):
+def line_plot(file_path, linestyle=None, labels=None, x_axis=None, y_axis=None, titel=None) -> None:
     data = np.loadtxt(file_path)
     t = data[:,0]
 
     _, ax = plt.subplots()
 
+    if linestyle is None or len(linestyle) != data.shape[1] - 1:
+        linestyle = ["-"] * (data.shape[1] - 1)
+
     for i, col in enumerate(data[:,1:].T):
         if labels is None:
-            ax.plot(t,col)
+            ax.plot(t,col, linestyle=linestyle[i])
         else:
-            ax.plot(t,col, label=labels[i])
+            ax.plot(t,col, label=labels[i], linestyle=linestyle[i])
+
+    if x_axis is not None:
+        ax.set_xlabel(x_axis)
+    if y_axis is not None:
+        ax.set_ylabel(y_axis)
+    if titel is not None:
+        ax.set_title(titel)
 
     if labels is not None:
         ax.legend()
