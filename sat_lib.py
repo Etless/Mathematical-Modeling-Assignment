@@ -214,7 +214,7 @@ class FineSunSensor(Sensor):
         return self.q_bs.rotate(self.z) if body_frame else self.z
 
 class StarTracker(Sensor):
-    def __init__(self, q_bs: su.Quaternion, z0: su.Quaternion, p_b: np.ndarray=np.zeros(3), sigma_s2: float=0.0, u: float=ol.mu):
+    def __init__(self, q_bs: su.Quaternion, z0: su.Quaternion, mu: float, p_b: np.ndarray=np.zeros(3), sigma_s2: float=0.0):
         # Variance
         self.sigma_s = math.sqrt(sigma_s2)
 
@@ -225,10 +225,10 @@ class StarTracker(Sensor):
         # Output
         self.z = z0
 
-        self.u = u
+        self.mu = mu
 
     def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray) -> None:
-        theta = np.random.normal(self.u, self.sigma_s)
+        theta = np.random.normal(self.mu, self.sigma_s)
         x, y = np.random.rand(2)
         a = np.arccos(1 - 2 * x)
         b = 2 * np.pi * y
@@ -237,7 +237,7 @@ class StarTracker(Sensor):
         self.z = q_ib @ self.q_bs @ q_e
 
     def output(self, body_frame: bool=False) -> np.ndarray:
-        return self.q_bs.rotate(self.z) if body_frame else self.z
+        return self.z @ self.q_bs.conjugated() if body_frame else self.z
 
 # Estimation classes
 class AttitudeEstimator:
@@ -415,7 +415,7 @@ class RigidBody:
         return np.concatenate([vi_, ai, dq, dw])
 
 class Satellite:
-    def __init__(self, q_ib: su.Quaternion, w_bib: np.ndarray, J: np.ndarray, sensors: list[Sensor], JD: float, ri: np.ndarray | None=None, vi: np.ndarray | None=None, m: float=1, orbit=None, substeps: int=0, estimator: AttitudeEstimator=Davenport()) -> None:
+    def __init__(self, q_ib: su.Quaternion, w_bib: np.ndarray, J: np.ndarray, sensors: list[Sensor], JD: float, ri: np.ndarray | None=None, vi: np.ndarray | None=None, m: float=1, orbit=None, substeps: int=0, estimator: AttitudeEstimator=Davenport(), ADCS=None) -> None:
         """
         Satellite class used to represent a satellite.
 
@@ -433,6 +433,7 @@ class Satellite:
         :param orbit: Orbit propagation object (default: None)
         :param substeps: Number of ADCS substeps per update (default: 0)
         :param estimator: Attitude estimator (default: Davenport)
+        :param ADCS: ADCS class (default: None)
         """
         # Handle None
         if ri is None:
@@ -452,22 +453,24 @@ class Satellite:
 
         # Substep used for ADCS integration
         self.N = substeps + 1 # Add one to make sure it runs at least once
-        #self.ADCS = ADCS_PD(2e-3, 3e-2, J, JD=JD, estimator=estimator, sensors=sensors)
 
-        # The two different ADCS used for assignment 8
-        #self.ADCS = ADCS_PD(0.05, 0.5, J, JD=JD, estimator=estimator, sensors=sensors)
-        self.ADCS = ADCS_SM(0.05, 0.1, 0.02, J, JD=JD, estimator=estimator, sensors=sensors)
+        # Assign ADCS to satellite
+        if ADCS is None:
+            self.ADCS = ADCS_SM(0.05, 0.1, 0.02, J, JD=JD, estimator=estimator, sensors=sensors)
+        else:
+            self.ADCS = ADCS
 
-    def update(self, t: float, dt: float) -> None:
+    def update(self, t: float, dt: float, target: tuple[su.Quaternion, np.ndarray, np.ndarray] | None=None) -> None:
         """
         Update the state of the satellite.
         :param t: Time [s]
         :param dt: Time step [s]
+        :param target: Target tuple (quaternion, angular velocity, angular acceleration) (default: None)
         """
         if self.orbit is not None:
-            self.update_with_orbit(t, dt)
+            self.update_with_orbit(t, dt, target)
         else:
-            self.update_with_dynamics(t, dt)
+            self.update_with_dynamics(t, dt, target)
 
     def get_state(self) -> tuple[np.ndarray, np.ndarray, su.Quaternion, np.ndarray]:
         """
@@ -495,11 +498,12 @@ class Satellite:
             return ol.orbit_frame_from_state(ri, vi)
 
     ### update methods ###
-    def update_with_orbit(self, t: float, dt: float) -> None:
+    def update_with_orbit(self, t: float, dt: float, target: tuple[su.Quaternion, np.ndarray, np.ndarray] | None=None) -> None:
         """
         Update the state of the satellite using orbit propagation and attitude control.
         :param t: Time [s]
         :param dt: Time step [s]
+        :param target: Target tuple (quaternion, angular velocity, angular acceleration) (default: None)
         """
         # Get initial and propagated states
         r0, v0 = self.orbit.get_state()
@@ -520,8 +524,11 @@ class Satellite:
             q_io, w_iio, _ = ol.orbit_frame_from_state(ri, vi)
 
             # Get ADCS torqe based on states
-            self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, np.zeros(3))
-            tau_u = self.ADCS.get_control()
+            if target is None:
+                self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, np.zeros(3))
+            else:
+                self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, *target)
+            tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torqe limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J) # Gravity-Gradient
             tau_d += self.body.J @ np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
@@ -532,11 +539,12 @@ class Satellite:
 
         # Manualy update rigid body position and velocity from orbit
         self.body.ri, self.body.vi = self.orbit.get_state()
-    def update_with_dynamics(self, t: float, dt: float) -> None:
+    def update_with_dynamics(self, t: float, dt: float, target: tuple[su.Quaternion, np.ndarray, np.ndarray] | None=None) -> None:
         """
         Update the state of the satellite based on dynamics propagation.
         :param t: Time [s]
         :param dt: Time step [s]
+        :param target: Target tuple (quaternion, angular velocity, angular acceleration) (default: None)
         """
         # Calculate the sub delta time
         dt_sub = dt / self.N
@@ -548,8 +556,11 @@ class Satellite:
             q_io, w_iio, dw_iio = self.get_orbit_frame()
 
             # Get ADCS torqe based on states
-            self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio)
-            tau_u = self.ADCS.get_control()
+            if target is None:
+                self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio)
+            else:
+                self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, *target)
+            tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torqe limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J)  # Gravity-Gradient
             tau_d += self.body.J @ np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances

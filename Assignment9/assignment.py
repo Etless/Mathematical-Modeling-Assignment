@@ -177,7 +177,7 @@ class Part1Task2(sim.BaseScenario):
 
 class Part2Task1(sim.BaseScenario):
     def __init__(self, file_path):
-        pass
+        self.target = None
 
     def init(self, t):
         q_ib = su.Quaternion([1, 0, 0, 0])
@@ -186,15 +186,43 @@ class Part2Task1(sim.BaseScenario):
         w_did = np.zeros(3)
         dw_did = np.zeros(3)
 
-        self.sat = sl.Satellite(q_ib, w_bib, J, None, None, None, None, 1,)
+        self.target = (q_id, w_did, dw_did)
+
+        # kg * m ** 2 -> kg * km ** 2
+        J = np.array([
+            [36046,  -706,  1491],
+            [ -706, 86868,   449],
+            [ 1491,   449, 93848]
+        ]) / 1000 ** 2
+
+        # Add Star-sensor
+        star_sensors = [
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1E-2)
+        ]
+
+        # Add a gyro
+        gyro_sensor = sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1E-6, 0, np.zeros(3))
+
+        # Create ADCS
+
+
+        self.sat = sl.Satellite(q_ib, w_bib, J, sensors=[*star_sensors, gyro_sensor], ADCS=None, JD=0, orbit=None, substeps=0)
 
     def update(self, t, dt):
-        pass
+        self.sat.update(t, dt, self.target)
+
+        # Calculate earth's rotation from time step
+        self.theta_E += dt * ol.w_E
 
     def get(self):
+        ri, _, q, _ = self.sat.get_state()
+
+        temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
+        q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
+
         return [
-            ['satellite', self.ri, self.q],
-            ['body_frame', self.ri, self.q],
+            ['satellite', ri, q],
+            ['body_frame', ri, q],
             ['earth', np.zeros(3), q_E],
             ['ECEF frame', np.zeros(3), q_E],
             ['ECI frame', np.zeros(3), su.Quaternion()]
