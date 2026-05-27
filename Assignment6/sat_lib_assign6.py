@@ -195,7 +195,7 @@ class Satellite:
             _, _, q_ib, w_bib = self.get_state()
             q_io, w_iio, _ = ol.orbit_frame_from_state(ri, vi)
 
-            # Get ADCS torqe based on states
+            # Get ADCS torque based on states
             self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, np.zeros(3))
             tau_u = self.ADCS.get_control()
 
@@ -203,7 +203,7 @@ class Satellite:
             self.body.update(t, dt_sub, np.zeros(3), tau_u)
             t += dt_sub
 
-        # Manualy update rigid body position and velocity from orbit
+        # Manually update rigid body position and velocity from orbit
         self.body.ri, self.body.vi = self.orbit.get_state()
     def update_with_dynamics(self, t: float, dt: float) -> None:
         """
@@ -220,7 +220,7 @@ class Satellite:
             ri, vi, q_ib, w_bib = self.get_state()
             q_io, w_iio, dw_iio = self.get_orbit_frame()
 
-            # Get ADCS torqe based on states
+            # Get ADCS torque based on states
             self.ADCS.update(t, q_ib, w_bib, q_io, w_iio, dw_iio)
             tau_u = self.ADCS.get_control()
 
