@@ -61,7 +61,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
-        # Satellite varaibles
+        # Satellite variables
         self.orbit.propagate(delta_t)  # Only update orbit (not rotation) due to big delta time
         self.sat = sl.Satellite(q0, w0, J, substeps=50, orbit=self.orbit)
 
