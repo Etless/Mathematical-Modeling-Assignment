@@ -24,7 +24,7 @@ class Sensor:
         """
         Returns the simulated sensor measurement.
 
-        Output can be choosen to either be in sensor frame or
+        Output can be chosen to either be in sensor frame or
         body frame by configuring the body_frame parameter.
 
         :param body_frame: If measurement should be in body frame (default: False)
@@ -83,7 +83,7 @@ class Gyro(Sensor):
         """
         Returns the simulated gyro measurement.
 
-        Output can be choosen to either be in sensor frame or
+        Output can be chosen to either be in sensor frame or
         body frame by configuring the body_frame parameter.
 
         :param body_frame: If measurement should be in body frame (default: False)
@@ -126,20 +126,20 @@ class Magnetometer(Sensor):
         # Noise
         eta_B = np.random.normal(0, self.sigma_B, 3)
 
-        # Get the magnetix flux density
+        # Get the magnetic flux density
         B_iE = ol.magnetic_field_dipol(ri, self.JD + ol.time_to_solar_day(t))
 
         # Internal frame -> body frame -> sensor frame
         q_is = q_ib @ self.q_bs
 
-        # Rotate magnetix flux density to sensor frame and add noise
+        # Rotate magnetic flux density to sensor frame and add noise
         self.z = q_is.conjugated().rotate(B_iE) + eta_B
 
     def output(self, body_frame: bool=False) -> np.ndarray:
         """
         Returns the simulated magnetometer measurement.
 
-        Output can be choosen to either be in sensor frame or
+        Output can be chosen to either be in sensor frame or
         body frame by configuring the body_frame parameter.
 
         :param body_frame: If measurement should be in body frame (default: False)
@@ -187,7 +187,7 @@ class FineSunSensor(Sensor):
         si = ol.sun_vector(self.JD + ol.time_to_solar_day(t)) # Best would be to calculate this outside class and pass it to all sun sensors
         s_b_sensor = q_ib.conjugated().rotate(si - ri)
 
-        # Normilize value
+        # Normalize value
         s_bt = s_b_sensor / np.linalg.norm(s_b_sensor)
 
         # Transform value into sensor frame
@@ -205,7 +205,7 @@ class FineSunSensor(Sensor):
         """
         Returns the simulated sun measurement.
 
-        Output can be choosen to either be in sensor frame or
+        Output can be chosen to either be in sensor frame or
         body frame by configuring the body_frame parameter.
 
         :param body_frame: If measurement should be in body frame (default: False)
@@ -231,7 +231,7 @@ class TRIAD(AttitudeEstimator):
         :return: Estimated coordinate transformation from A to B
         """
         # Only take the two first vectors from M_A and M_B (Filters out excess sun sensors)
-        # Refrence frame
+        # Reference frame
         UA = M_A[0]
         VA = M_A[1]
 
@@ -251,7 +251,7 @@ class TRIAD(AttitudeEstimator):
 
         Tb = np.array([tb1, tb2, tb3])
 
-        # Convert rotation matrix to queterion
+        # Convert rotation matrix to quaternion
         return su.dcm_to_quaternion(Ta.T @ Tb).normalized()
 class Davenport(AttitudeEstimator):
     def estimate_attitude(self, M_B: list[np.ndarray], M_A: list[np.ndarray], weights: list[float] | None=None) -> su.Quaternion:
@@ -291,7 +291,7 @@ class Davenport(AttitudeEstimator):
         # Get the eigenvectors from K-matrix
         _, evecs = np.linalg.eigh(K)
 
-        # Construct rotation quatarion from eigenvectors
+        # Construct rotation quaternion from eigenvectors
         return su.Quaternion(evecs[:, -1]).normalized()
 
 
@@ -430,8 +430,8 @@ class Satellite:
         #self.ADCS = ADCS_PD(2e-3, 3e-2, J, JD=JD, estimator=estimator, sensors=sensors)
 
         # The two different ADCS used for assignment 8
-        #self.ADCS = ADCS_PD(0.05, 0.5, J, JD=JD, estimator=estimator, sensors=sensors)
-        self.ADCS = ADCS_SM(0.05, 0.1, 0.02, J, JD=JD, estimator=estimator, sensors=sensors)
+        self.ADCS = ADCS_PD(0.05, 0.5, J, JD=JD, estimator=estimator, sensors=sensors)
+        #self.ADCS = ADCS_SM(0.05, 0.1, 0.02, J, JD=JD, estimator=estimator, sensors=sensors)
 
     def update(self, t: float, dt: float) -> None:
         """
@@ -494,7 +494,7 @@ class Satellite:
             _, _, q_ib, w_bib = self.get_state()
             q_io, w_iio, _ = ol.orbit_frame_from_state(ri, vi)
 
-            # Get ADCS torqe based on states
+            # Get ADCS torque based on states
             self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, np.zeros(3))
             tau_u = self.ADCS.get_control()
 
@@ -505,7 +505,7 @@ class Satellite:
             self.body.update(t, dt_sub, np.zeros(3), tau_u + tau_d)
             t += dt_sub
 
-        # Manualy update rigid body position and velocity from orbit
+        # Manually update rigid body position and velocity from orbit
         self.body.ri, self.body.vi = self.orbit.get_state()
     def update_with_dynamics(self, t: float, dt: float) -> None:
         """
@@ -522,7 +522,7 @@ class Satellite:
             ri, vi, q_ib, w_bib = self.get_state()
             q_io, w_iio, dw_iio = self.get_orbit_frame()
 
-            # Get ADCS torqe based on states
+            # Get ADCS torque based on states
             self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio)
             tau_u = self.ADCS.get_control()
 
@@ -554,7 +554,7 @@ class ADCS_PD:
         :param JD: Julian Date (days since J2000.0, can include fractional day)
         :param sensors: List of sensor objects
         """
-        # Coeficence varaibles
+        # Coefficient variables
         self.k1 = k1
         self.k2 = k2
 
@@ -599,7 +599,7 @@ class ADCS_PD:
         """
         ts = ol.time_to_solar_day(t) # Seconds in solar day
 
-        # Get refrence vectors
+        # Get reference vectors
         Bi = ol.magnetic_field_dipol(ri, self.JD + ts)
         Si = ol.sun_vector(self.JD + ts)
 
@@ -611,7 +611,7 @@ class ADCS_PD:
         M_B = []
         M_A = []
 
-        # Magnometer
+        # Magnetometer
         M_B.append(su.unit(self.mag_sensor.output(body_frame=True)))
         M_A.append(su.unit(Bi))
 
@@ -670,7 +670,7 @@ class ADCS_SM:
         :param JD: Julian Date (days since J2000.0, can include fractional day)
         :param sensors: List of sensor objects
         """
-        # Coeficence varaibles
+        # Coefficient variables
         self.eps = eps
         self.k1 = k1
         self.k = k
@@ -716,7 +716,7 @@ class ADCS_SM:
         """
         ts = ol.time_to_solar_day(t) # Seconds in solar day
 
-        # Get refrence vectors
+        # Get reference vectors
         Bi = ol.magnetic_field_dipol(ri, self.JD + ts)
         Si = ol.sun_vector(self.JD + ts)
 
@@ -728,7 +728,7 @@ class ADCS_SM:
         M_B = []
         M_A = []
 
-        # Magnometer
+        # Magnetometer
         M_B.append(su.unit(self.mag_sensor.output(body_frame=True)))
         M_A.append(su.unit(Bi))
 
