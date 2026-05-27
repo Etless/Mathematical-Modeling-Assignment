@@ -48,7 +48,7 @@ class Part1Task2(sim.BaseScenario):
 
         # Orbit of current year
         self.orbit2, self.JD2 = PKepler_from_tle_params(file_path, index=0, debug=False) # HST1
-        # Orbit 9 years ago to be propigated to current year
+        # Orbit 9 years ago to be propagated to current year
         self.orbit3, self.JD3 = PKepler_from_tle_params(file_path, index=1, debug=False) # HST2
 
     def init(self, t):
@@ -61,7 +61,7 @@ class Part1Task2(sim.BaseScenario):
         # Calculate delta time between orbit2 (HST1) and orbit3 (HST2)
         dt_23 = (24.0 * 3600.0) * (self.JD2 - self.JD3)
 
-        # Calculate delta time for orbit1 (HST1) to propigate 9 years in the future
+        # Calculate delta time for orbit1 (HST1) to propagate 9 years in the future
         dt_1  = 9.0 * 365.0 * (24.0 * 3600.0)
 
         substeps = 100000 # Number of substeps to perform the propagation
@@ -78,7 +78,7 @@ class Part1Task2(sim.BaseScenario):
         self.ri, vi = self.orbit1.get_state()
         self.q, _, _ = self.orbit1.get_orbit_frame()
 
-        # !!! Not needed just to make simultaion look more realistic
+        # !!! Not needed just to make simulation look more realistic
         self.theta_E = ol.sidereal_angle(self.JD1 + dt_1 / (24.0 * 3600.0)) # Rotation of earth at updated orbit1 (HST1)
 
         # Used to plot the difference between orbit2 and orbit3
@@ -178,6 +178,10 @@ class Part1Task2(sim.BaseScenario):
 class Part2Task1(sim.BaseScenario):
     def __init__(self, file_path):
         self.target = None
+        self.sat = None
+        self.theta_E = None
+
+        self.orbit, self.JD = PKepler_from_tle_params(file_path, index=0, debug=False)  # HST1
 
     def init(self, t):
         q_ib = su.Quaternion([1, 0, 0, 0])
@@ -188,25 +192,27 @@ class Part2Task1(sim.BaseScenario):
 
         self.target = (q_id, w_did, dw_did)
 
-        # kg * m ** 2 -> kg * km ** 2
+        # kg * m ** 2
         J = np.array([
             [36046,  -706,  1491],
             [ -706, 86868,   449],
             [ 1491,   449, 93848]
-        ]) / 1000 ** 2
+        ])
 
         # Add Star-sensor
         star_sensors = [
             sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1E-2)
         ]
 
+        self.theta_E = ol.sidereal_angle(self.JD)  # Offset to the rotation
+
         # Add a gyro
         gyro_sensor = sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1E-6, 0, np.zeros(3))
 
         # Create ADCS
-
-
-        self.sat = sl.Satellite(q_ib, w_bib, J, sensors=[*star_sensors, gyro_sensor], ADCS=None, JD=0, orbit=None, substeps=0)
+        ADCS = sl.ADCS_PD(1E-4, 2E-2, J, estimator=sl.Davenport(), JD=self.JD, sensors=[*star_sensors, gyro_sensor])
+        #ADCS = sl.ADCS_PD(0.1, 0.2, J, JD=self.JD, estimator=sl.Davenport(), sensors=[*star_sensors, gyro_sensor])
+        self.sat = sl.Satellite(q_ib, w_bib, J, sensors=[*star_sensors, gyro_sensor], ADCS=ADCS, JD=self.JD, orbit=self.orbit, substeps=30, estimator=sl.Davenport())
 
     def update(self, t, dt):
         self.sat.update(t, dt, self.target)
@@ -285,10 +291,12 @@ def main():
   scenario = Part1Task2(file_path)
   T = ol.orbital_period_from_revs_per_day(rev) # Assume the other orbits are the same as this
   sim_config = {'t_0': 0, 't_e': T, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
-  sim.create_and_start_simulation(sim_config,scenario)
+  #sim.create_and_start_simulation(sim_config,scenario)
 
   # Do Part 2 Task 1
-
+  scenario = Part2Task1(file_path)
+  sim_config = {'t_0': 0, 't_e': T*4, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
+  sim.create_and_start_simulation(sim_config, scenario)
 
 if __name__ == "__main__":
     main()
