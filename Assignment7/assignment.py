@@ -61,7 +61,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
-        # Satellite varaibles
+        # Satellite variables
         cos_x = math.cos(math.pi / 4)
         sin_x = math.sin(math.pi / 4)
 
