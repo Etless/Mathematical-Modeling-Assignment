@@ -531,7 +531,7 @@ class Satellite:
             tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torque limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J) # Gravity-Gradient
-            tau_d += self.body.J @ np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
+            tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
 
             # Update satellites body with forces
             self.body.update(t, dt_sub, np.zeros(3), tau_u + tau_d)
@@ -563,7 +563,7 @@ class Satellite:
             tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torque limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J)  # Gravity-Gradient
-            tau_d += self.body.J @ np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances
+            tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances
 
             # Calculate orbit force (two body problem)
             f = self.body.m * (-ol.mu / np.linalg.norm(ri) ** 3 * ri)
@@ -727,13 +727,17 @@ class ADCS_SM:
 
         # Add sensor from list to its respective class
         self.sun_sensors = []
-        self.mag_sensor  = None
+        self.star_sensors = []
+        self.mag_sensor = None
         self.gyro_sensor = None
-        self.sensors = sensors # Used for an easy update loop
+        self.sensors = sensors  # Used for an easy update loop
 
         for s in sensors:
             if isinstance(s, FineSunSensor):
                 self.sun_sensors.append(s)
+
+            elif isinstance(s, StarTracker):
+                self.star_sensors.append(s)
 
             elif isinstance(s, Magnetometer):
                 self.mag_sensor = s
@@ -766,7 +770,7 @@ class ADCS_SM:
             sensor.update(t, dt, ri, vi, q_ib, w_bib)
 
         # Create empty list for estimator
-        M_B = []
+        """M_B = []
         M_A = []
 
         # Magnetometer
@@ -785,8 +789,12 @@ class ADCS_SM:
             M_A.append(su.unit(Si))
 
         # Estimate attitude
-        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
+        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)"""
+        q_ib_estimate = self.star_sensors[0].output(body_frame=True)
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
+
+        q_ib_estimate = q_ib
+        w_bib_estimate = w_bib
 
         # Quaternion error (desired -> body)
         q_db = q_io.conjugated() @ q_ib_estimate

@@ -33,6 +33,13 @@ def PKepler_from_tle_params(file_path: str, index: int=0, debug: bool=False) -> 
     return ol.OrbitPKepler(a, e, Me, omega, i, w, dn, d2n), JD
 
 
+##############################
+# Assignment 9 Part 2        #
+##############################
+
+def error_in_arcsec(q: su.Quaternion):
+    return  2 * 180 * 3600 / math.pi * np.arcsin(np.linalg.norm(q[1:]))
+
 class Part1Task2(sim.BaseScenario):
     def __init__(self, file_path):
         self.ri = None
@@ -210,8 +217,8 @@ class Part2Task1(sim.BaseScenario):
         gyro_sensor = sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1E-6, 0, np.zeros(3))
 
         # Create ADCS
-        ADCS = sl.ADCS_PD(1E-4, 2E-2, J, estimator=sl.Davenport(), JD=self.JD, sensors=[*star_sensors, gyro_sensor])
-        #ADCS = sl.ADCS_PD(0.1, 0.2, J, JD=self.JD, estimator=sl.Davenport(), sensors=[*star_sensors, gyro_sensor])
+        #ADCS = sl.ADCS_PD(1E-4, 2E-2, J, estimator=sl.Davenport(), JD=self.JD, sensors=[*star_sensors, gyro_sensor])
+        ADCS = sl.ADCS_SM(0.01, 0.2, 0.5, J, JD=self.JD, estimator=sl.Davenport(), sensors=[*star_sensors, gyro_sensor])
         self.sat = sl.Satellite(q_ib, w_bib, J, sensors=[*star_sensors, gyro_sensor], ADCS=ADCS, JD=self.JD, orbit=self.orbit, substeps=30, estimator=sl.Davenport())
 
     def update(self, t, dt):
@@ -225,7 +232,7 @@ class Part2Task1(sim.BaseScenario):
 
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
-
+        print(error_in_arcsec(q - self.target[0]))
         return [
             ['satellite', ri, q],
             ['body_frame', ri, q],
