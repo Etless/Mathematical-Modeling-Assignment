@@ -3,7 +3,7 @@ import datetime
 
 import numpy as np
 import simutils as su
-import sat_lib as sl
+import sat_lib_assign8 as sl
 import orbit_lib as ol
 import simulator as sim
 
@@ -45,13 +45,12 @@ class ScenarioAssignment1(sim.BaseScenario):
     def init(self, t):
         q0 = su.Quaternion([1, 0, 0, 0])
         w0 = np.array([0, 0, 0])
+
         J = np.array([
             [ 0.00146519,  0.00001703, -0.00000633],
             [ 0.00001703,  0.00151512, -0.00001598],
             [-0.00000633, -0.00001598,  0.00146333],
         ])
-
-
 
         # Earth rotation variables
         JD_now = ol.datetime_to_julian_date(datetime.datetime.now())
@@ -61,7 +60,7 @@ class ScenarioAssignment1(sim.BaseScenario):
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         self.q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
 
-        # Satellite varaibles
+        # Satellite variables
         cos_x = math.cos(math.pi / 4)
         sin_x = math.sin(math.pi / 4)
 
