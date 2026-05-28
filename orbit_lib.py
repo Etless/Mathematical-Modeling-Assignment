@@ -776,6 +776,10 @@ class OrbitPKepler:
         self.a -= 2.0 * self.a / (3.0 * n) * self.dn * dt
         self.e -= 2.0 * (1.0 - self.e) / (3.0 * n) * self.dn * dt
 
+        # Checks if eccentricity is negative
+        if self.e < 0:
+            self.e = 0
+
         self.omega -= 3.0 * n * self.R ** 2 * self.J2 / (2.0 * p ** 2) * math.cos(self.i) * dt
         self.w     += 3.0 * n * self.R ** 2 * self.J2 / (4.0 * p ** 2) * (4.0 - 5.0 * math.sin(self.i) ** 2) * dt
         self.Me    += n * dt + 0.5 * self.dn * dt ** 2 + 1.0 / 6.0 * self.d2n * dt ** 3

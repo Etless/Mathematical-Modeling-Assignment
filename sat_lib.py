@@ -531,7 +531,8 @@ class Satellite:
             tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torque limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J) # Gravity-Gradient
-            tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
+            #tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
+            tau_d += np.array([0.2 * math.sin(math.pi * (0.14 * t + 0.31)) + 0.2 * np.sin(math.pi * (1.22 * t - 0.05)), 0.0,0.0])  # Disturbance obtained from thermal stress
 
             # Update satellites body with forces
             self.body.update(t, dt_sub, np.zeros(3), tau_u + tau_d)
@@ -563,7 +564,8 @@ class Satellite:
             tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torque limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J)  # Gravity-Gradient
-            tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances
+            # tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances
+            tau_d += np.array([0.2 * math.sin(math.pi * (0.14 * t + 0.31)) + 0.2 * np.sin(math.pi * (1.22 * t - 0.05)), 0.0, 0.0]) # Disturbance obtained from thermal stress
 
             # Calculate orbit force (two body problem)
             f = self.body.m * (-ol.mu / np.linalg.norm(ri) ** 3 * ri)
@@ -793,29 +795,26 @@ class ADCS_SM:
         q_ib_estimate = self.star_sensors[0].output(body_frame=True)
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
-        q_ib_estimate = q_ib
-        w_bib_estimate = w_bib
-
         # Quaternion error (desired -> body)
         q_db = q_io.conjugated() @ q_ib_estimate
         if q_db[0] < 0:  # Shortest way/direction to rotate
             q_db *= -1
 
         # Orbit rates (desired -> body)
-        w_iob  = q_db.conjugated().rotate(w_iio)
+        #w_bio  = q_ib_estimate.conjugated().rotate(w_iio)
 
         # Angular velocity error (desired -> body)
-        w_db = w_bib_estimate - w_iob
+        w_db = w_bib_estimate # - w_bio
 
-        dw_iob = q_db.conjugated().rotate(dw_iio) + np.cross(w_iob, w_db)
+        #dw_bio = q_ib_estimate.conjugated().rotate(dw_iio) + np.cross(w_bio, w_db)
 
         s = w_db + 2.0 * self.k1 * q_db[1:]
         dq_v = q_db[0] * w_db + np.cross(q_db[1:], w_db)
         sat_s = np.clip(s / self.eps, a_min=-1.0, a_max=1.0)
 
-
-        self.tau = (np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
-            self.J @ (dw_iob - self.k1 * dq_v - self.k * sat_s)
+        self.tau = (
+            np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
+            self.J @ (-self.k1 * dq_v - self.k * sat_s)
         )
 
     def get_control(self) -> np.ndarray:
