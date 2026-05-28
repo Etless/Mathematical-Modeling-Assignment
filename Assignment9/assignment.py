@@ -325,8 +325,9 @@ class Part2Task1(sim.BaseScenario):
         ri1, _, q1, _ = self.sat1.get_state()
         ri2, _, q2, _ = self.sat2.get_state()
 
-        arcsec_err1 = error_in_arcsec(self.target[0].conjugated() @ q1)
-        arcsec_err2 = error_in_arcsec(self.target[0].conjugated() @ q2)
+        q_oG = su.Quaternion([0, 1, 0, 0])
+        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
         self.pointing_error1 = np.concatenate(([t], [arcsec_err1]))
         self.pointing_error2 = np.concatenate(([t], [arcsec_err2]))
@@ -366,8 +367,9 @@ class Part2Task1(sim.BaseScenario):
         ri1, _, q1, _ = self.sat1.get_state()
         ri2, _, q2, _ = self.sat2.get_state()
 
-        arcsec_err1 = error_in_arcsec(self.target[0].conjugated() @ q1)
-        arcsec_err2 = error_in_arcsec(su.Quaternion([0, 1, 0, 0]) @ self.target[0].conjugated() @ q2)
+        q_oG = su.Quaternion([0, 1, 0, 0])
+        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
         self.pointing_error1 = np.vstack((self.pointing_error1, np.concatenate(([t], [arcsec_err1]))))
         self.pointing_error2 = np.vstack((self.pointing_error2, np.concatenate(([t], [arcsec_err2]))))

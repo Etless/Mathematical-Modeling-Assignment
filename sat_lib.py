@@ -673,8 +673,11 @@ class ADCS_PD:
         q_ib_estimate = self.star_sensors[0].output(body_frame=True)
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
+        # Quick and dirty fix for orbit -> Gaussian frame
+        q_oG = su.Quaternion([0, 1, 0, 0])
+
         # Quaternion error (desired -> body)
-        q_db = q_io.normalized().conjugated() @ q_ib_estimate
+        q_db = q_oG.conjugated() @ q_io.normalized().conjugated() @ q_ib_estimate
         if q_db[0] < 0:  # Shortest way/direction to rotate
             q_db *= -1
 
@@ -795,8 +798,11 @@ class ADCS_SM:
         q_ib_estimate = self.star_sensors[0].output(body_frame=True)
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
+        # Quick and dirty fix for orbit -> Gaussian frame
+        q_oG = su.Quaternion([0, 1, 0, 0])
+
         # Quaternion error (desired -> body)
-        q_db = q_io.conjugated() @ q_ib_estimate
+        q_db = q_oG.conjugated() @ q_io.normalized().conjugated() @ q_ib_estimate
         if q_db[0] < 0:  # Shortest way/direction to rotate
             q_db *= -1
 
