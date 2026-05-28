@@ -398,8 +398,8 @@ def state_from_tle_params(e: float, n: float, Me: float, omega: float, i: float,
              - Position vector in ECI frame [km]
              - Velocity vector in ECI frame [km/s]
     """
-    # Updated for assignement 5. Originaly used revs per day
-    # to calculate the orbital period, but I  was adviced to
+    # Updated for assignment 5. Originally used revs per day
+    # to calculate the orbital period, but I  was advised to
     # use n (n = 2 * pi / T) instead.
     a = semi_major_axis_from_mean_motion(n, u)
     h = math.sqrt(a * u * (1 - e ** 2))
@@ -490,7 +490,7 @@ def datetime_to_julian_date(d: datetime.datetime) -> float:
     :param d: Date as datetime
     :return: Julian date
     """
-    year = d.year % 100 # Only retrive the 2 last digits
+    year = d.year % 100 # Only retrieve the 2 last digits
     doy = d.timetuple().tm_yday # Day of year
     fraction = (d.hour * 3600 + d.minute * 60 + d.second) / 86400 # Only factors in to seconds
 
@@ -772,7 +772,7 @@ class OrbitPKepler:
         p = self.a * (1.0 - self.e ** 2)
         n = math.sqrt(self.u / self.a ** 3)
 
-        # Propegate orbital parameters
+        # Propagate orbital parameters
         self.a -= 2.0 * self.a / (3.0 * n) * self.dn * dt
         self.e -= 2.0 * (1.0 - self.e) / (3.0 * n) * self.dn * dt
 
@@ -875,7 +875,7 @@ def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-4, a: float=R_E, f: float=
     :param f: Flattening factor (Default: 0.0033...)
     :return: Tuple (latitude, longitude, height) [radians, radians, km]
     """
-    # Delta values assumed at begining
+    # Delta values assumed at beginning
     phi, lam, _ = geocentric_from_xyz(ri)
 
     # Iterate until value is close "enough"
@@ -890,7 +890,7 @@ def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-4, a: float=R_E, f: float=
 
         phi = phi_new
 
-    # FIXME: task askes for phi not phi_new
+    # FIXME: task asks for phi not phi_new
     N = a / (math.sqrt(1 - e2 * (math.sin(phi_new)) ** 2))
     h = math.sqrt(ri[0] ** 2 + ri[1] ** 2) / math.cos(phi_new) - N # Height
     return phi_new, lam, h
@@ -910,7 +910,7 @@ def xyz_from_geodetic(phi: float, lam: float, h: float, a: float=R_E, f: float=f
     ri = np.array([
         (N + h) * math.cos(phi) * math.cos(lam),
         (N + h) * math.cos(phi) * math.sin(lam),
-        (N * (1 - e2) + h) * math.sin(phi) # AI recomended e2 instead
+        (N * (1 - e2) + h) * math.sin(phi) # AI recommended e2 instead
     ])
 
     return ri

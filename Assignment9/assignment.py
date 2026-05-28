@@ -172,7 +172,7 @@ class Part1Task2(sim.BaseScenario):
         r_diff = r2 - r3
         self.orbit_difference_plot = np.concatenate(([t], [r_diff]))
 
-        # Used for ploting ground track of orbits
+        # Used for plotting ground track of orbits
         lat1, lon1, _ = ol.geodetic_from_xyz(ol.ecef_from_eci(self.ri, self.orbit1_theta_E))
         lat2, lon2, _ = ol.geodetic_from_xyz(ol.ecef_from_eci(ri2, self.orbit2_theta_E))
         lat3, lon3, _ = ol.geodetic_from_xyz(ol.ecef_from_eci(ri3, self.orbit3_theta_E))
@@ -217,7 +217,7 @@ class Part1Task2(sim.BaseScenario):
         r_diff = r2 - r3
         self.orbit_difference_plot = np.vstack((self.orbit_difference_plot, np.concatenate(([t], [r_diff]))))
 
-        # Used for ploting ground track of orbits
+        # Used for plotting ground track of orbits
         lat1, lon1, _ = ol.geodetic_from_xyz(ol.ecef_from_eci(self.ri, self.orbit1_theta_E))
         lat2, lon2, _ = ol.geodetic_from_xyz(ol.ecef_from_eci(ri2, self.orbit2_theta_E))
         lat3, lon3, _ = ol.geodetic_from_xyz(ol.ecef_from_eci(ri3, self.orbit3_theta_E))
@@ -248,7 +248,7 @@ class Part1Task2(sim.BaseScenario):
 
         file = su.log_pos("assignment9_orbit_difference", self.orbit_difference_plot)
         self.orbit_difference_plot = None  # Clear the data after its saved
-        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Difference [km]", titel="Differenece in height")
+        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Difference [km]", titel="Difference in height")
 
         # Plot ground tracks
         grid_img = "Assignment9/earth_grid.jpg" # Path to image of ground
@@ -316,7 +316,7 @@ class Part2Task1(sim.BaseScenario):
         ADCS1 = sl.ADCS_PD(1E-4, 2E-2, J, estimator=sl.Davenport(), JD=self.JD1, sensors=sensors1)
         self.sat1 = sl.Satellite(q_ib, w_bib, J, sensors=sensors1, ADCS=ADCS1, JD=self.JD1,orbit=self.orbit1, substeps=50, estimator=sl.Davenport())
 
-        # Due to sensor noise make targeting coefficienc aggressive 2e-2, 2e-5, 2e-5
+        # Due to sensor noise make targeting coefficient aggressive 2e-2, 2e-5, 2e-5
         ADCS2 = sl.ADCS_SM(2e-2, 2e-5, 2e-5, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors2)
         #ADCS = sl.ADCS_SM(1.2e-3, 1.0e-5, 3.0e-6, J, JD=self.JD, estimator=sl.Davenport(), sensors=[*star_sensors, gyro_sensor])
         self.sat2 = sl.Satellite(q_ib, w_bib, J, sensors=sensors2, ADCS=ADCS2, JD=self.JD2, orbit=self.orbit2, substeps=50, estimator=sl.Davenport())
@@ -325,7 +325,7 @@ class Part2Task1(sim.BaseScenario):
         ri1, _, q1, _ = self.sat1.get_state()
         ri2, _, q2, _ = self.sat2.get_state()
 
-        q_oG = su.Quaternion([0, 1, 0, 0])
+        q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
         arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
         arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
@@ -341,33 +341,11 @@ class Part2Task1(sim.BaseScenario):
         # Calculate earth's rotation from time step
         self.theta_E += dt * ol.w_E
 
-        #ri, _, q, _ = self.sat.get_state()
-        #tau = self.sat.ADCS.get_control()
-
-        #q_err = self.target[0].conjugated() @ q
-        #error = error_in_arcsec(q_err.normalized())
-
-        #if isinstance(self.sat.ADCS, sl.ADCS_SM):
-        #    print(f"Error: {error:.3f} || saturated: {np.any(np.abs(tau) >= 1.13)} || {self.fine} || {self.sat.ADCS.k1:.6f} {self.sat.ADCS.k:.6f} {self.sat.ADCS.eps:.6f} || q: {q[0]:.5f} {q[1]:.5f} {q[2]:.5f} {q[3]:.5f}")
-
-        #if isinstance(self.sat.ADCS, sl.ADCS_PD):
-        #    print(f"Error: {error:.3f} || saturated: {np.any(np.abs(tau) >= 1.13)} || {self.fine} || {self.sat.ADCS.k1:.6f} {self.sat.ADCS.k2:.6f} || q: {q[0]:.5f} {q[1]:.5f} {q[2]:.5f} {q[3]:.5f}")
-
-        # Update coefficence when error is low (fine pointing)
-        #w_norm = np.linalg.norm(self.sat.ADCS.gyro_sensor.output(body_frame=True))
-        #if error < 30.0 and w_norm < 1e-6:
-        #    self.fine = True
-
-        #if self.fine:
-        #    alpha = 0.001  # smaller = smoother transition (Don't shock system)
-        #    self.sat.ADCS.k1  += alpha * (.5 - self.sat.ADCS.k1)
-        #    self.sat.ADCS.k   += alpha * (.5 - self.sat.ADCS.k)
-        #    self.sat.ADCS.eps += alpha * (.2 - self.sat.ADCS.eps)
-
+        # Used for plotting Error
         ri1, _, q1, _ = self.sat1.get_state()
         ri2, _, q2, _ = self.sat2.get_state()
 
-        q_oG = su.Quaternion([0, 1, 0, 0])
+        q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
         arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
         arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
@@ -375,10 +353,10 @@ class Part2Task1(sim.BaseScenario):
         self.pointing_error2 = np.vstack((self.pointing_error2, np.concatenate(([t], [arcsec_err2]))))
         self.pointing_error = np.vstack((self.pointing_error, np.concatenate(([t], [arcsec_err1, arcsec_err2]))))
 
-        progress_bar_update(dt, f"ADCS PD: {arcsec_err1:.5f} arcsec || ADCS SM: {arcsec_err2:.5f} arcsec ||") # Update progress bar
+        progress_bar_update(dt, f"ADCS PD: {arcsec_err1:.5f} arcsec || ADCS SM: {arcsec_err2:.5f} arcsec :") # Update progress bar
 
     def get(self):
-        ri, _, q, _ = self.sat2.get_state() # Render satelite 2 (ADCS SM)
+        ri, _, q, _ = self.sat2.get_state() # Render satellite 2 (ADCS SM)
 
         temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
         q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
@@ -433,7 +411,7 @@ def main():
   scenario = Part1Task2(file_path)
   T = ol.orbital_period_from_revs_per_day(rev) # Assume the other orbits are the same as this
   sim_config = {'t_0': 0, 't_e': T, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
-  #sim.create_and_start_simulation(sim_config,scenario)
+  #sim.create_and_start_simulation(sim_config,scenario) # Don't use when working in part 2
 
   # Do Part 2 Task 1
   scenario = Part2Task1(file_path)
