@@ -301,12 +301,12 @@ class Part2Task1(sim.BaseScenario):
 
         # Add Star-sensor & gyro
         sensors1 = [
-            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-20),  # 1E-2
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-2),  # 1E-2
             sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1e-6, 0, np.zeros(3))  # 1E-6
         ]
 
         sensors2 = [
-            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-20),  # 1E-2
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-2),  # 1E-2
             sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1e-6, 0, np.zeros(3))  # 1E-6
         ]
 
