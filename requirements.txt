@@ -1,8 +1,6 @@
-numpy
-pillow
-PyOpenGL
-PyQt6
-vispy
-matplotlib
-
-astropy # Used for custom code
+matplotlib~=3.10.9
+numpy~=2.4.4
+pillow~=12.2.0
+vispy~=0.16.1
+tqdm~=4.67.3
+astropy~=7.2.0
