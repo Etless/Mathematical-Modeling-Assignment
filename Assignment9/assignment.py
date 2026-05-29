@@ -556,8 +556,8 @@ def main():
 
   # Do Part 2 Task 2
   scenario = Part2Task2(file_path)
-  progress_bar(T * 4)  # Create progress bar
-  sim_config = {'t_0': 0, 't_e': T * 2, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
+  progress_bar(T*4)  # Create progress bar
+  sim_config = {'t_0': 0, 't_e': T*4, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
   sim.create_and_start_simulation(sim_config, scenario)
 
 if __name__ == "__main__":

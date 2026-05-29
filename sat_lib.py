@@ -314,10 +314,11 @@ class Davenport(AttitudeEstimator):
         K[1:, 1:] = B + B.T - tr_B * np.eye(3)
 
         # Get the eigenvectors from K-matrix
-        _, evecs = np.linalg.eigh(K)
+        evals, evecs = np.linalg.eig(K)
 
         # Construct rotation quaternion from eigenvectors
-        return su.Quaternion(evecs[:, -1]).normalized()
+        max_idx = np.argmax(evals)
+        return su.Quaternion(evecs[:, max_idx]).normalized()
 
 
 ###################################
@@ -639,38 +640,65 @@ class ADCS_PD:
         :param w_iio: Desired angular velocity [rad/s]
         :param dw_iio: Desired angular acceleration (default: zero) [rad/s**2]
         """
-        ts = ol.time_to_solar_day(t) # Seconds in solar day
+        ts = ol.time_to_solar_day(t)  # Seconds in solar day
 
         # Get reference vectors
         Bi = ol.magnetic_field_dipol(ri, self.JD + ts)
         Si = ol.sun_vector(self.JD + ts)
+
+        e = [
+            np.array([1.0, 0.0, 0.0]),
+            np.array([0.0, 1.0, 0.0]),
+            np.array([0.0, 0.0, 1.0])
+        ]
 
         # Update sensors
         for sensor in self.sensors:
             sensor.update(t, dt, ri, vi, q_ib, w_bib)
 
         # Create empty list for estimator
-        """M_B = []
+        M_B = []
         M_A = []
 
         # Magnetometer
-        M_B.append(su.unit(self.mag_sensor.output(body_frame=True)))
-        M_A.append(su.unit(Bi))
+        if self.mag_sensor is not None:
+            M_B.append(su.unit(self.mag_sensor.output(body_frame=True)))
+            M_A.append(su.unit(Bi))
 
         # Fine sun sensors
-        for sun in self.sun_sensors:
+        if self.sun_sensors is not None:
+            for sun in self.sun_sensors:
 
-            # Only care about non-zero values
-            measurement = sun.output(body_frame=True)
-            if np.linalg.norm(measurement) < 1e-12:
-                continue
+                # Only care about non-zero values
+                measurement = sun.output(body_frame=True)
+                if np.linalg.norm(measurement) == 0:
+                    continue
 
-            M_B.append(su.unit(measurement))
-            M_A.append(su.unit(Si))
+                M_B.append(su.unit(measurement))
+                M_A.append(su.unit(Si))
+
+        # Star-tracking sensor
+        if self.star_sensors is not None:
+            for i, star in enumerate(self.star_sensors):
+                qi = star.output(body_frame=True).normalized()  # Temp
+
+                ai = e[i]
+                bi = e[(i + 1) % 3]
+
+                ai_hat = qi.rotate(ai)
+                bi_hat = qi.rotate(bi)
+
+                M_A.append(ai)
+                M_B.append(ai_hat)
+
+                M_A.append(bi)
+                M_B.append(bi_hat)
 
         # Estimate attitude
-        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)"""
-        q_ib_estimate = self.star_sensors[0].output(body_frame=True)
+        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
+
+        if len(self.star_sensors) == 1:
+            q_ib_estimate = self.star_sensors[0].output(body_frame=True)
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
         # Quick and dirty fix for orbit -> Gaussian frame
@@ -802,26 +830,28 @@ class ADCS_SM:
                 M_A.append(su.unit(Si))
 
         # Star-tracking sensor
-        for i, star in enumerate(self.star_sensors):
-            qi = star.output(body_frame=True).normalized() # Temp
+        if self.star_sensors is not None:
+            for i, star in enumerate(self.star_sensors):
+                qi = star.output(body_frame=True).normalized() # Temp
 
-            ai = e[i]
-            bi = e[(i + 1) % 3]
+                ai = e[i]
+                bi = e[(i + 1) % 3]
 
-            ai_hat = qi.rotate(ai)
-            bi_hat = qi.rotate(bi)
+                ai_hat = qi.rotate(ai)
+                bi_hat = qi.rotate(bi)
 
 
-            M_B.append(ai)
-            M_A.append(ai_hat)
+                M_B.append(ai)
+                M_A.append(ai_hat)
 
-            M_B.append(bi)
-            M_A.append(bi_hat)
+                M_B.append(bi)
+                M_A.append(bi_hat)
 
         # Estimate attitude
         q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
 
-        #q_ib_estimate = self.star_sensors[0].output(body_frame=True)
+        if len(self.star_sensors) == 1:
+            q_ib_estimate = self.star_sensors[0].output(body_frame=True)
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
         # Quick and dirty fix for orbit -> Gaussian frame
