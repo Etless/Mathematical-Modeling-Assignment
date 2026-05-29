@@ -78,7 +78,7 @@ class ScenarioAssignment1(sim.BaseScenario):
 
 
 def main():
-  sim_config = {'t_0':0,'t_e':sl.T,'t_step':1,'speed_factor':200,'anim_dt':0.04,'scale_factor':2000,'visualise':True}
+  sim_config = {'t_0':0,'t_e':T,'t_step':1,'speed_factor':200,'anim_dt':0.04,'scale_factor':2000,'visualise':True}
   #scenario = sim.BaseScenario()
   scenario = ScenarioAssignment1()
   sim.create_and_start_simulation(sim_config,scenario)
