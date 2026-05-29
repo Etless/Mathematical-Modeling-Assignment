@@ -376,7 +376,7 @@ class Part2Task1(sim.BaseScenario):
         #self.pointing_error1 = None  # Clear the data after its saved
         pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec",titel="Pointing error (PD)", linestyle=None)
 
-        file = su.log_pos("assignment9_pointing_error_sub1", self.pointing_error1[600:])
+        file = su.log_pos("assignment9_pointing_error_sub1", self.pointing_error1[(3600//dt):])
         self.pointing_error1 = None  # Clear the data after its saved
         pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error (PD)", linestyle=None)
 
@@ -384,7 +384,7 @@ class Part2Task1(sim.BaseScenario):
         # self.pointing_error2 = None  # Clear the data after its saved
         pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error (SM)", linestyle=None)
 
-        file = su.log_pos("assignment9_pointing_error_sub2", self.pointing_error2[600:])
+        file = su.log_pos("assignment9_pointing_error_sub2", self.pointing_error2[(3600//dt):])
         self.pointing_error2 = None  # Clear the data after its saved
         pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error (SM)", linestyle=None)
 
@@ -392,10 +392,144 @@ class Part2Task1(sim.BaseScenario):
         # self.pointing_error = None  # Clear the data after its saved
         pl.line_plot(file, labels=["PD", "SM"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error", linestyle=None)
 
-        file = su.log_pos("assignment9_pointing_error_sub", self.pointing_error[600:])
+        file = su.log_pos("assignment9_pointing_error_sub", self.pointing_error[(3600//dt):])
         self.pointing_error = None  # Clear the data after its saved
         pl.line_plot(file, labels=["PD", "SM"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error", linestyle=None)
 
+class Part2Task2(sim.BaseScenario):
+    def __init__(self, file_path):
+        self.sat1 = None
+        self.sat2 = None
+
+        # Are the same for both satellites
+        self.theta_E = None
+        self.target = None
+
+        self.pointing_error = None
+        self.pointing_error1 = None
+        self.pointing_error2 = None
+
+        self.orbit1, self.JD1 = PKepler_from_tle_params(file_path, index=0, debug=False)  # HST1 (ADCS_PD)
+        self.orbit2, self.JD2 = PKepler_from_tle_params(file_path, index=0, debug=False)  # HST1 (ADCS_SM)
+
+        #self.fine = False
+
+    def init(self, t):
+        q_ib = su.Quaternion([1, 0, 0, 0])
+        w_bib = np.array([0.3, -0.1, 2]) * 1E-3
+        q_id = su.Quaternion([0.5, 0.5, 0.5, 0.5])
+        w_did = np.zeros(3)
+        dw_did = np.zeros(3)
+
+        self.target = (q_id, w_did, dw_did) # Set target tuple
+
+        # kg * m ** 2
+        J = np.array([
+            [36046,  -706,  1491],
+            [ -706, 86868,   449],
+            [ 1491,   449, 93848]
+        ])
+
+        # Add Star-sensor & gyro
+        sensors1 = [
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-2),  # 1E-2
+            sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1e-6, 0, np.zeros(3))  # 1E-6
+        ]
+
+        sensors2 = [
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-2),  # 1E-2
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-2),  # 1E-2
+            sl.StarTracker(su.Quaternion([1, 0, 0, 0]), su.Quaternion([1, 0, 0, 0]), 0, np.zeros(3), 1e-2),  # 1E-2
+            sl.Gyro(su.Quaternion([1, 0, 0, 0]), np.zeros(3), np.zeros(3), 1e-6, 0, np.zeros(3))  # 1E-6
+        ]
+
+        self.theta_E = ol.sidereal_angle(self.JD1)  # Offset to the rotation
+
+        # Create ADCS
+        ADCS1 = sl.ADCS_SM(2e-2, 2e-5, 2e-5, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors1)
+        self.sat1 = sl.Satellite(q_ib, w_bib, J, sensors=sensors1, ADCS=ADCS1, JD=self.JD1,orbit=self.orbit1, substeps=50, estimator=sl.Davenport())
+
+        # Due to sensor noise make targeting coefficient aggressive 2e-2, 2e-5, 2e-5
+        ADCS2 = sl.ADCS_SM(2e-2, 2e-5, 2e-5, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors2)
+        #ADCS = sl.ADCS_SM(1.2e-3, 1.0e-5, 3.0e-6, J, JD=self.JD, estimator=sl.Davenport(), sensors=[*star_sensors, gyro_sensor])
+        self.sat2 = sl.Satellite(q_ib, w_bib, J, sensors=sensors2, ADCS=ADCS2, JD=self.JD2, orbit=self.orbit2, substeps=50, estimator=sl.Davenport())
+
+        # Used for plotting Error
+        ri1, _, q1, _ = self.sat1.get_state()
+        ri2, _, q2, _ = self.sat2.get_state()
+
+        q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
+        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
+
+        self.pointing_error1 = np.concatenate(([t], [arcsec_err1]))
+        self.pointing_error2 = np.concatenate(([t], [arcsec_err2]))
+
+        self.pointing_error = np.concatenate(([t], [arcsec_err1, arcsec_err2]))
+
+    def update(self, t, dt):
+        self.sat1.update(t, dt, self.target)
+        self.sat2.update(t, dt, self.target)
+
+        # Calculate earth's rotation from time step
+        self.theta_E += dt * ol.w_E
+
+        # Used for plotting Error
+        ri1, _, q1, _ = self.sat1.get_state()
+        ri2, _, q2, _ = self.sat2.get_state()
+
+        q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
+        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
+
+        self.pointing_error1 = np.vstack((self.pointing_error1, np.concatenate(([t], [arcsec_err1]))))
+        self.pointing_error2 = np.vstack((self.pointing_error2, np.concatenate(([t], [arcsec_err2]))))
+        self.pointing_error = np.vstack((self.pointing_error, np.concatenate(([t], [arcsec_err1, arcsec_err2]))))
+
+        progress_bar_update(dt, f"ADCS 1 Tracker: {arcsec_err1:.5f} arcsec || ADCS 3 Tracker: {arcsec_err2:.5f} arcsec :") # Update progress bar
+
+    def get(self):
+        ri, _, q, _ = self.sat2.get_state() # Render satellite 2 (ADCS SM)
+
+        temp = ol.polar2xyz(1, self.theta_E / 2)  # Normalized XY from q_E
+        q_E = su.Quaternion([temp[0], 0, 0, temp[1]])
+
+        return [
+            ['satellite', ri, q],
+            ['body_frame', ri, q],
+            ['earth', np.zeros(3), q_E],
+            ['ECEF frame', np.zeros(3), q_E],
+            ['ECI frame', np.zeros(3), su.Quaternion()]
+        ]
+
+    def post_process(self, t, dt):
+        progress_bar_close()  # Close progress bar
+
+        file = su.log_pos("assignment9_pointing_error1_2", self.pointing_error1)
+        # self.pointing_error1 = None  # Clear the data after its saved
+        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
+
+        file = su.log_pos("assignment9_pointing_error_sub1_2", self.pointing_error1[(3600 // dt):])
+        self.pointing_error1 = None  # Clear the data after its saved
+        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
+
+        file = su.log_pos("assignment9_pointing_error2_2", self.pointing_error2)
+        # self.pointing_error2 = None  # Clear the data after its saved
+        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
+
+        file = su.log_pos("assignment9_pointing_error_sub2_2", self.pointing_error2[(3600 // dt):])
+        self.pointing_error2 = None  # Clear the data after its saved
+        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 3 star tracker", linestyle=None)
+
+        file = su.log_pos("assignment9_pointing_error_2", self.pointing_error)
+        # self.pointing_error = None  # Clear the data after its saved
+        pl.line_plot(file, labels=["1 star tracker", "3 star tracker"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error",
+                     linestyle=None)
+
+        file = su.log_pos("assignment9_pointing_error_sub_2", self.pointing_error[(3600 // dt):])
+        self.pointing_error = None  # Clear the data after its saved
+        pl.line_plot(file, labels=["1 star tracker", "3 star tracker"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error",
+                     linestyle=None)
 
 def main():
   file_path = "Assignment9/TLE.txt"
@@ -417,6 +551,13 @@ def main():
   scenario = Part2Task1(file_path)
   progress_bar(T*4) # Create progress bar
   sim_config = {'t_0': 0, 't_e': T*4, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
+  #sim.create_and_start_simulation(sim_config, scenario)
+  progress_bar_close()
+
+  # Do Part 2 Task 2
+  scenario = Part2Task2(file_path)
+  progress_bar(T * 4)  # Create progress bar
+  sim_config = {'t_0': 0, 't_e': T * 2, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
   sim.create_and_start_simulation(sim_config, scenario)
 
 if __name__ == "__main__":
