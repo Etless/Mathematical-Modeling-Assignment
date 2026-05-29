@@ -101,9 +101,6 @@ def print_state(orbit, JD: float, theta_E: float, text: str):
 # Assignment 9 Part 2        #
 ##############################
 
-def error_in_arcsec(q: su.Quaternion):
-    return  2 * 180 * 3600 / math.pi * np.arcsin(np.linalg.norm(q[1:]))
-
 class Part1Task2(sim.BaseScenario):
     def __init__(self, file_path):
         self.ri = None
@@ -326,8 +323,8 @@ class Part2Task1(sim.BaseScenario):
         ri2, _, q2, _ = self.sat2.get_state()
 
         q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
-        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
-        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
+        arcsec_err1 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
         self.pointing_error1 = np.concatenate(([t], [arcsec_err1]))
         self.pointing_error2 = np.concatenate(([t], [arcsec_err2]))
@@ -346,8 +343,8 @@ class Part2Task1(sim.BaseScenario):
         ri2, _, q2, _ = self.sat2.get_state()
 
         q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
-        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
-        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
+        arcsec_err1 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
         self.pointing_error1 = np.vstack((self.pointing_error1, np.concatenate(([t], [arcsec_err1]))))
         self.pointing_error2 = np.vstack((self.pointing_error2, np.concatenate(([t], [arcsec_err2]))))
@@ -409,6 +406,9 @@ class Part2Task2(sim.BaseScenario):
         self.pointing_error1 = None
         self.pointing_error2 = None
 
+        #self.pointing_torque1 = None
+        #self.pointing_torque2 = None
+
         self.orbit1, self.JD1 = PKepler_from_tle_params(file_path, index=0, debug=False)  # HST1 (ADCS_PD)
         self.orbit2, self.JD2 = PKepler_from_tle_params(file_path, index=0, debug=False)  # HST1 (ADCS_SM)
 
@@ -447,11 +447,12 @@ class Part2Task2(sim.BaseScenario):
 
         # Create ADCS
         ADCS1 = sl.ADCS_SM(2e-2, 2e-5, 2e-5, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors1)
+        #ADCS1 = sl.ADCS_PD(1E-4, 3E-2, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors1)
         self.sat1 = sl.Satellite(q_ib, w_bib, J, sensors=sensors1, ADCS=ADCS1, JD=self.JD1,orbit=self.orbit1, substeps=50, estimator=sl.Davenport())
 
         # Due to sensor noise make targeting coefficient aggressive 2e-2, 2e-5, 2e-5
         ADCS2 = sl.ADCS_SM(2e-2, 2e-5, 2e-5, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors2)
-        #ADCS = sl.ADCS_SM(1.2e-3, 1.0e-5, 3.0e-6, J, JD=self.JD, estimator=sl.Davenport(), sensors=[*star_sensors, gyro_sensor])
+        #ADCS2 = sl.ADCS_PD(1E-4, 3E-2, J, JD=self.JD2, estimator=sl.Davenport(), sensors=sensors2)
         self.sat2 = sl.Satellite(q_ib, w_bib, J, sensors=sensors2, ADCS=ADCS2, JD=self.JD2, orbit=self.orbit2, substeps=50, estimator=sl.Davenport())
 
         # Used for plotting Error
@@ -459,13 +460,20 @@ class Part2Task2(sim.BaseScenario):
         ri2, _, q2, _ = self.sat2.get_state()
 
         q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
-        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
-        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
+        arcsec_err1 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
         self.pointing_error1 = np.concatenate(([t], [arcsec_err1]))
         self.pointing_error2 = np.concatenate(([t], [arcsec_err2]))
 
         self.pointing_error = np.concatenate(([t], [arcsec_err1, arcsec_err2]))
+
+        # Used to plot torque (Did not yeld to usefully)
+        #tau1 = self.sat1.ADCS.get_control()
+        #tau2 = self.sat2.ADCS.get_control()
+
+        #self.pointing_torque1 = np.concatenate(([t], [*tau1, sl.TORQUE_SATURATION, -sl.TORQUE_SATURATION]))
+        #self.pointing_torque2 = np.concatenate(([t], [*tau2, sl.TORQUE_SATURATION, -sl.TORQUE_SATURATION]))
 
     def update(self, t, dt):
         self.sat1.update(t, dt, self.target)
@@ -479,14 +487,25 @@ class Part2Task2(sim.BaseScenario):
         ri2, _, q2, _ = self.sat2.get_state()
 
         q_oG = su.Quaternion([0, 1, 0, 0]) # Gaussian frame
-        arcsec_err1 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
-        arcsec_err2 = error_in_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
+        arcsec_err1 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q1)
+        arcsec_err2 = su.attitude_error_arcsec(q_oG.conjugated() @ self.target[0].conjugated() @ q2)
 
         self.pointing_error1 = np.vstack((self.pointing_error1, np.concatenate(([t], [arcsec_err1]))))
         self.pointing_error2 = np.vstack((self.pointing_error2, np.concatenate(([t], [arcsec_err2]))))
         self.pointing_error = np.vstack((self.pointing_error, np.concatenate(([t], [arcsec_err1, arcsec_err2]))))
 
-        progress_bar_update(dt, f"ADCS 1 Tracker: {arcsec_err1:.5f} arcsec || ADCS 3 Tracker: {arcsec_err2:.5f} arcsec :") # Update progress bar
+        # Used to plot torque
+        tau1 = self.sat1.ADCS.get_control()
+        tau2 = self.sat2.ADCS.get_control()
+
+        #self.pointing_torque1 = np.vstack((self.pointing_torque1, np.concatenate(([t], [*tau1, sl.TORQUE_SATURATION, -sl.TORQUE_SATURATION]))))
+        #self.pointing_torque2 = np.vstack((self.pointing_torque2, np.concatenate(([t], [*tau2, sl.TORQUE_SATURATION, -sl.TORQUE_SATURATION]))))
+
+        # Print the error offset between the target orientation and the satellite orientation in arcseconds
+        #progress_bar_update(dt, f"ADCS 1 Tracker: {arcsec_err1:.5f} arcsec || ADCS 3 Tracker: {arcsec_err2:.5f} arcsec :") # Update progress bar
+
+        # Print the error offset of the true satellite orientation and the average sensor estimation in arcseconds
+        progress_bar_update(dt,f"ADCS 1 Average: {self.sat1.ADCS.average_error:.3f} arcsec || ADCS 3 Average: {self.sat2.ADCS.average_error:.3f} arcsec :")  # Update progress bar
 
     def get(self):
         ri, _, q, _ = self.sat2.get_state() # Render satellite 2 (ADCS SM)
@@ -509,27 +528,55 @@ class Part2Task2(sim.BaseScenario):
         # self.pointing_error1 = None  # Clear the data after its saved
         pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
 
-        file = su.log_pos("assignment9_pointing_error_sub1_2", self.pointing_error1[(3600 // dt):])
+        if self.pointing_error1.shape[0] > 3600 // dt:
+            file = su.log_pos("assignment9_pointing_error_sub1_2", self.pointing_error1[(3600 // dt):])
+            pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
+
+            # Calculate the average arcsec pointin error after one hour
+            avg = 0
+            for error in self.pointing_error1[(3600 // dt):]:
+                avg += error[1]
+
+            avg /= self.pointing_error1[(3600 // dt):].shape[0]
+            print("Average pointing error 1 star tracker:", avg, "arcsec")
         self.pointing_error1 = None  # Clear the data after its saved
-        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
+
+        print(f"Estimation error 1 star tracker || Average: {self.sat1.ADCS.average_error:.3f} arcsec || Lower bounds: {self.sat1.ADCS.lower_error:.3f} arcsec || Upper bounds: {self.sat1.ADCS.upper_error:.3f} arcsec")
 
         file = su.log_pos("assignment9_pointing_error2_2", self.pointing_error2)
         # self.pointing_error2 = None  # Clear the data after its saved
-        pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 1 star tracker", linestyle=None)
-
-        file = su.log_pos("assignment9_pointing_error_sub2_2", self.pointing_error2[(3600 // dt):])
-        self.pointing_error2 = None  # Clear the data after its saved
         pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 3 star tracker", linestyle=None)
+
+        if self.pointing_error2.shape[0] > 3600 // dt:
+            file = su.log_pos("assignment9_pointing_error_sub2_2", self.pointing_error2[(3600 // dt):])
+            pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error 3 star tracker", linestyle=None)
+
+            # Calculate the average arcsec pointin error after one hour
+            avg = 0
+            for error in self.pointing_error2[(3600 // dt):]:
+                avg += error[1]
+
+            avg /= self.pointing_error2[(3600 // dt):].shape[0]
+            print("Average pointing error 3 star tracker:", avg, "arcsec")
+        self.pointing_error2 = None  # Clear the data after its saved
+
+        print(f"Estimation error 1 star tracker || Average: {self.sat2.ADCS.average_error:.3f} arcsec || Lower bounds: {self.sat2.ADCS.lower_error:.3f} arcsec || Upper bounds: {self.sat2.ADCS.upper_error:.3f} arcsec")
 
         file = su.log_pos("assignment9_pointing_error_2", self.pointing_error)
         # self.pointing_error = None  # Clear the data after its saved
-        pl.line_plot(file, labels=["1 star tracker", "3 star tracker"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error",
-                     linestyle=None)
+        pl.line_plot(file, labels=["1 star tracker", "3 star tracker"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error",linestyle=None)
 
         file = su.log_pos("assignment9_pointing_error_sub_2", self.pointing_error[(3600 // dt):])
         self.pointing_error = None  # Clear the data after its saved
-        pl.line_plot(file, labels=["1 star tracker", "3 star tracker"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error",
-                     linestyle=None)
+        pl.line_plot(file, labels=["1 star tracker", "3 star tracker"], x_axis="Time [s]", y_axis="Arcsec", titel="Pointing error",linestyle=None)
+
+        #file = su.log_pos("assignment9_pointing_tau1", self.pointing_torque1[0:(10*60) // dt])
+        #self.pointing_torque1 = None  # Clear the data after its saved
+        #pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="N*m",titel="Torque 1 star tracker", linestyle=["-","-","-", "--", "--"])
+
+        #file = su.log_pos("assignment9_pointing_tau2", self.pointing_torque2[0:(10*60) // dt])
+        #self.pointing_torque2 = None  # Clear the data after its saved
+        #pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="N*m", titel="Torque 3 star tracker",linestyle=["-","-","-", "--", "--"])
 
 def main():
   file_path = "Assignment9/TLE.txt"
@@ -545,7 +592,7 @@ def main():
   scenario = Part1Task2(file_path)
   T = ol.orbital_period_from_revs_per_day(rev) # Assume the other orbits are the same as this
   sim_config = {'t_0': 0, 't_e': T, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
-  #sim.create_and_start_simulation(sim_config,scenario) # Don't use when working in part 2
+  #sim.create_and_start_simulation(sim_config,scenario)
 
   # Do Part 2 Task 1
   scenario = Part2Task1(file_path)
@@ -559,6 +606,7 @@ def main():
   progress_bar(T*4)  # Create progress bar
   sim_config = {'t_0': 0, 't_e': T*4, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
   sim.create_and_start_simulation(sim_config, scenario)
+  progress_bar_close()
 
 if __name__ == "__main__":
     main()

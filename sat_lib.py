@@ -1,7 +1,10 @@
 import numpy as np
+
 import orbit_lib as ol
 import simutils as su
 import math
+
+TORQUE_SATURATION = 1.13
 
 ###################################
 # Assignment 7 | Sensors ++       #
@@ -301,8 +304,11 @@ class Davenport(AttitudeEstimator):
 
         # Compute B, z
         for i in range(N):
-            B += weights[i] * np.outer(M_B[i], M_A[i])
-            z += weights[i] * np.cross(M_B[i], M_A[i])
+            ub = su.unit(M_B[i])
+            ua = su.unit(M_A[i])
+
+            B += weights[i] * np.outer(ub, ua)
+            z += weights[i] * np.cross(ub, ua)
 
         tr_B = np.trace(B)
 
@@ -314,11 +320,12 @@ class Davenport(AttitudeEstimator):
         K[1:, 1:] = B + B.T - tr_B * np.eye(3)
 
         # Get the eigenvectors from K-matrix
-        evals, evecs = np.linalg.eig(K)
+        evals, evecs = np.linalg.eigh(K) # Force real values
 
         # Construct rotation quaternion from eigenvectors
         max_idx = np.argmax(evals)
-        return su.Quaternion(evecs[:, max_idx]).normalized()
+        q = su.Quaternion(np.real(evecs[:, max_idx])).normalized()
+        return q if q[0] > 0 else q * -1
 
 
 ###################################
@@ -529,7 +536,7 @@ class Satellite:
                 self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, np.zeros(3))
             else:
                 self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, *target)
-            tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torque limit
+            tau_u = np.clip(self.ADCS.get_control(), -TORQUE_SATURATION, TORQUE_SATURATION) # Hard-code the torque limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J) # Gravity-Gradient
             #tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)]) # Other disturbances
@@ -562,7 +569,7 @@ class Satellite:
                 self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, q_io, w_iio, dw_iio)
             else:
                 self.ADCS.update(t, dt_sub, ri, vi, q_ib, w_bib, *target)
-            tau_u = np.clip(self.ADCS.get_control(), -1.13, 1.13) # Hard-code the torque limit
+            tau_u = np.clip(self.ADCS.get_control(), -TORQUE_SATURATION, TORQUE_SATURATION) # Hard-code the torque limit
 
             tau_d  = ol.gravity_gradient(ri, q_ib, self.body.J)  # Gravity-Gradient
             # tau_d += np.array([0.01 * math.sin(0.01 * t), 0.0, 0.01 * math.cos(0.01 * t)])  # Other disturbances
@@ -613,6 +620,13 @@ class ADCS_PD:
         self.gyro_sensor  = None
         self.sensors = sensors # Used for an easy update loop
 
+
+        self.lower_error = math.inf
+        self.upper_error = -math.inf
+        self.error_count = 0
+        self.average_error = 0.0
+
+        # Sort sensor into its own type
         for s in sensors:
             if isinstance(s, FineSunSensor):
                 self.sun_sensors.append(s)
@@ -688,11 +702,11 @@ class ADCS_PD:
                 ai_hat = qi.rotate(ai)
                 bi_hat = qi.rotate(bi)
 
-                M_A.append(ai)
-                M_B.append(ai_hat)
+                M_B.append(ai)
+                M_A.append(ai_hat)
 
-                M_A.append(bi)
-                M_B.append(bi_hat)
+                M_B.append(bi)
+                M_A.append(bi_hat)
 
         # Estimate attitude
         q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
@@ -720,6 +734,15 @@ class ADCS_PD:
         self.tau = (np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
             self.J @ (dw_iob + np.cross(w_iob, w_db) - self.k1 * q_db[1:] - self.k2 * w_db)
         )
+
+        # Used for debugging!
+        error = su.attitude_error_arcsec(q_ib.conjugated() @ q_ib_estimate)
+
+        self.lower_error = min(self.lower_error, error)
+        self.upper_error = max(self.upper_error, error)
+
+        self.error_count += 1
+        self.average_error += (error - self.average_error) / self.error_count
 
     def get_control(self) -> np.ndarray:
         """
@@ -765,6 +788,7 @@ class ADCS_SM:
         self.gyro_sensor = None
         self.sensors = sensors  # Used for an easy update loop
 
+        # Sort sensor into its own type
         for s in sensors:
             if isinstance(s, FineSunSensor):
                 self.sun_sensors.append(s)
@@ -777,6 +801,12 @@ class ADCS_SM:
 
             elif isinstance(s, Gyro):
                 self.gyro_sensor = s
+
+
+        self.lower_error = math.inf
+        self.upper_error = -math.inf
+        self.error_count = 0
+        self.average_error = 0.0
 
     def update(self, t: float, dt: float, ri: np.ndarray, vi: np.ndarray, q_ib: su.Quaternion, w_bib: np.ndarray, q_io: su.Quaternion, w_iio: np.ndarray, dw_iio: np.ndarray=np.zeros(3)) -> None:
         """
@@ -848,10 +878,11 @@ class ADCS_SM:
                 M_A.append(bi_hat)
 
         # Estimate attitude
-        q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
-
         if len(self.star_sensors) == 1:
             q_ib_estimate = self.star_sensors[0].output(body_frame=True)
+        else:
+            q_ib_estimate = self.estimator.estimate_attitude(M_B, M_A)
+
         w_bib_estimate = self.gyro_sensor.output(body_frame=True)
 
         # Quick and dirty fix for orbit -> Gaussian frame
@@ -878,6 +909,15 @@ class ADCS_SM:
             np.cross(w_bib_estimate, self.J @ w_bib_estimate) +
             self.J @ (-self.k1 * dq_v - self.k * sat_s)
         )
+
+        # Used for debugging!
+        error = su.attitude_error_arcsec(q_ib.conjugated() @ q_ib_estimate)
+
+        self.lower_error = min(self.lower_error, error)
+        self.upper_error = max(self.upper_error, error)
+
+        self.error_count += 1
+        self.average_error += (error - self.average_error) / self.error_count
 
     def get_control(self) -> np.ndarray:
         """

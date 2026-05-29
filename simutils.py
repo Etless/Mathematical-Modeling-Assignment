@@ -523,3 +523,16 @@ def unit(x: np.ndarray) -> np.ndarray:
     :return: Unit vector
     """
     return x / np.linalg.norm(x)
+
+
+###################################
+# Assignment 9 | Custom functions #
+###################################
+
+def attitude_error_arcsec(error: Quaternion):
+    """
+     Compute the attitude error represented by a quaternion in arcseconds.
+    :param error: Attitude error
+    :return: Magnitude of the attitude error in arcseconds.
+    """
+    return 2 * 180 * 3600 / math.pi * np.arcsin(np.linalg.norm(error[1:]))
