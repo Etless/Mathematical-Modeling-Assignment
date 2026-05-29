@@ -578,6 +578,23 @@ class Part2Task2(sim.BaseScenario):
         #self.pointing_torque2 = None  # Clear the data after its saved
         #pl.line_plot(file, labels=None, x_axis="Time [s]", y_axis="N*m", titel="Torque 3 star tracker",linestyle=["-","-","-", "--", "--"])
 
+
+
+
+#
+# Please read this before running!!!
+#
+# The main function will run all simulations used
+# in assignment 9, if only one of these simulations
+# are desired then one should comment out all
+# sim.create_and_start_simulation(sim_config,...)
+# for the other tasks. Also, to run the program
+# please refer to the "code statement" in the report
+
+#
+# Saving the data for the plots may use a large amount of RAM,
+# so it may necessary to comment some of them out
+
 def main():
   file_path = "Assignment9/TLE.txt"
 
@@ -592,13 +609,13 @@ def main():
   scenario = Part1Task2(file_path)
   T = ol.orbital_period_from_revs_per_day(rev) # Assume the other orbits are the same as this
   sim_config = {'t_0': 0, 't_e': T, 't_step': 2, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
-  #sim.create_and_start_simulation(sim_config,scenario)
+  sim.create_and_start_simulation(sim_config,scenario)
 
   # Do Part 2 Task 1
   scenario = Part2Task1(file_path)
   progress_bar(T*4) # Create progress bar
   sim_config = {'t_0': 0, 't_e': T*4, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000,'visualise': True}
-  #sim.create_and_start_simulation(sim_config, scenario)
+  sim.create_and_start_simulation(sim_config, scenario)
   progress_bar_close()
 
   # Do Part 2 Task 2
