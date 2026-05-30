@@ -371,7 +371,7 @@ def state_from_orbit_params(h: float, e: float, theta: float, omega: float, i: f
              - Position vector in ECI frame [km]
              - Velocity vector in ECI frame [km/s]
     """
-    r = h ** 2 / u / (1 + e * math.cos(theta)) # Get distance of satellite to planet center # TODO: Make its own function
+    r = h ** 2 / u / (1 + e * math.cos(theta)) # Get distance of satellite to planet center
     rp = polar2xyz(r, theta) # Convert to XY
     vp = (u/h) * np.array([-np.sin(theta), e + np.cos(theta), 0])
 
@@ -676,7 +676,7 @@ class OrbitClassic:
         self._state_valid = False
 
     def propagate(self, dt: float) -> None:
-        r = self.h ** 2 / (self.u * (1 + self.e * math.cos(self.theta))) # TODO: Make its own function
+        r = self.h ** 2 / (self.u * (1 + self.e * math.cos(self.theta)))
         theta_dot = self.h / r ** 2
 
         # Propagate state to its next value in regard to time step
@@ -746,7 +746,6 @@ class OrbitTLE:
 # Assignment 6 | Algorithms       #
 ###################################
 
-# TODO: Add comments
 class OrbitPKepler:
 
     def __init__(self, a: float, e: float, Me: float, omega: float, i: float, w: float, dn: float, d2n: float, J2: float=0.001082629821313, u: float=mu, R: float=R_E) -> None:
@@ -890,7 +889,6 @@ def geodetic_from_xyz(ri: np.ndarray, delta: float=1e-4, a: float=R_E, f: float=
 
         phi = phi_new
 
-    # FIXME: task asks for phi not phi_new
     N = a / (math.sqrt(1 - e2 * (math.sin(phi_new)) ** 2))
     h = math.sqrt(ri[0] ** 2 + ri[1] ** 2) / math.cos(phi_new) - N # Height
     return phi_new, lam, h

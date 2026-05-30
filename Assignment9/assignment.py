@@ -95,6 +95,7 @@ def print_state(orbit, JD: float, theta_E: float, text: str):
     print("Geodetic Latitude                  : λ′     ", lam)
     print("Geodetic/Geocentric longitude      : ϕ      ", phi)
     print("Altitude                           : h      ", height)
+    print("Eccentricity                       : e      ", e)
 
 
 ##############################

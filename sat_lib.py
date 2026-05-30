@@ -752,16 +752,15 @@ class ADCS_PD:
         return self.tau
 
 
-# TODO: Add better comments here
 # noinspection PyPep8Naming
 class ADCS_SM:
     def __init__(self, k1: float, k: float, eps: float, J: np.ndarray, estimator: AttitudeEstimator, JD: float, sensors: list[Sensor]) -> None:
         """
         Sliding Mode ADCS controller.
 
-        :param k1:
-        :param k:
-        :param eps:
+        :param k1: Attitude error gain
+        :param k: Switching/reaching gain
+        :param eps: Boundary-layer width used in the saturation function for the sliding variable.
         :param J: Inertia matrix
         :param estimator: Attitude estimator (TRIAD, Davenport, etc.)
         :param JD: Julian Date (days since J2000.0, can include fractional day)
