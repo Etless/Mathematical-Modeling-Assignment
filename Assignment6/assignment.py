@@ -66,7 +66,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.sat = sl.Satellite(q0, w0, J, substeps=50, orbit=self.orbit)
 
 
-        # FIXME: Use the updated ground track (earth_grid)
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
         lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
