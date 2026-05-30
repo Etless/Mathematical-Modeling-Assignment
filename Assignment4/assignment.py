@@ -1,6 +1,6 @@
 import numpy as np
 import simutils as su
-import sat_lib_assign4 as sl
+import Assignment4.sat_lib_assign4 as sl
 import simulator as sim
 
 import plotter as pl
@@ -73,10 +73,6 @@ class ScenarioAssignment1(sim.BaseScenario):
 
 
 def main():
-  #scenario = sim.BaseScenario()
-  #scenario = ScenarioAssignment1()
-  #sim.create_and_start_simulation(sim_config,scenario)
-
   #sim_config = {'t_0': 0, 't_e': 20000, 't_step': 10, 'speed_factor': 100, 'anim_dt': 0.04, 'scale_factor': 1000, 'visualise': True}
   sim_config = {'t_0': 0, 't_e': 100, 't_step': 0.01, 'speed_factor': 1, 'anim_dt': 0.04, 'scale_factor': 150,'visualise': True}
   scenario = ScenarioAssignment1()
