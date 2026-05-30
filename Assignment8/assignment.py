@@ -83,7 +83,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.sat = sl.Satellite(q0, w0, J, substeps=10, orbit=self.orbit, JD=JD_now, sensors=[gyro_sensor, mag_sensor, *sun_sensors])
         #self.sat = sl.Satellite(q0, w0, J, ri=self.r0, vi=self.v0, substeps=10, JD=JD_now, sensors=[gyro_sensor, mag_sensor, *sun_sensors]) # Tests the update_with_dynamics function
 
-        # FIXME: Use the updated ground track (earth_grid)
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
         lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
