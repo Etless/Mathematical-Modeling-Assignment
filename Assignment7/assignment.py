@@ -82,7 +82,6 @@ class ScenarioAssignment1(sim.BaseScenario):
         self.orbit.propagate(delta_t)  # Only update orbit (not rotation) due to big delta time
         self.sat = sl.Satellite(q0, w0, J, substeps=10, orbit=self.orbit, JD=JD_now, sensors=[gyro_sensor, mag_sensor, *sun_sensors])
 
-        # FIXME: Use the updated ground track (earth_grid)
         # Not needed just for fun
         ri, _, _, _ = self.sat.get_state()
         lat, lon, _ = ol.geocentric_from_xyz(ol.ecef_from_eci(ri, self.theta_E))
